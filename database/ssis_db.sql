@@ -368,9 +368,6 @@ INSERT INTO `roles` (`key`, `label`, `description`, `is_system`, `created_at`, `
   ('cashier',    'Cashier',    'Handles assessments, installment payments, document fees and student accounts.', 1, NOW(), NOW()),
   ('department', 'Department', 'Clears and reviews students under its department.', 1, NOW(), NOW());
 
-INSERT INTO `users` (`username`,  `email`, `password`, `name`, `role_id`, `department_id`, `contact`, `status`, `must_change_password`, `created_at`, `updated_at` ) VALUES 
-('rene', 'renebutterbonia@gmail.com', 'mama67', 'Rene Butterbonia Dinulos III', 1, 1, '+639676767676', 'Active', 0, NOW(), NOW());
-
 INSERT INTO `permissions` (`key`, `label`, `group`) VALUES
   ('students.view',        'View student records', 'Students'),
   ('students.manage',      'Register new students and edit student information', 'Students'),
