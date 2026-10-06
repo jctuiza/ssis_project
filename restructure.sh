@@ -8,7 +8,7 @@ set -euo pipefail
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "This folder is not a git repository."; exit 1; }
 if [ -n "$(git status --porcelain)" ]; then echo "Commit or stash your changes first (git status must be clean)."; exit 1; fi
 
-git switch -c restructure
+git switch restructure
 mkdir -p backend frontend docs
 
 # Move a file or folder: git mv when git tracks it, plain mv for local-only things (.env, vendor, node_modules, new files).
