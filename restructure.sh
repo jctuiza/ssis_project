@@ -19,7 +19,7 @@ move() {
 }
 
 echo "1/5 Backend (Laravel) ..."
-for item in app bootstrap config database public routes storage tests resources artisan composer.json composer.lock phpunit.xml \
+for item in bootstrap config database public routes storage tests resources artisan composer.json composer.lock phpunit.xml \
             .env.example .gitignore AGENTS.md CLAUDE.md boost.json Dockerfile .dockerignore docker .env vendor; do
   move "$item" backend/
 done
