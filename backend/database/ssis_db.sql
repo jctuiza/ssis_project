@@ -1,3 +1,6 @@
+/* back up langs since nalipat na sa migrations and seeders */
+
+
 CREATE DATABASE IF NOT EXISTS `ssis` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `ssis`;
 
