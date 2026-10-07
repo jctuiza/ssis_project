@@ -38,7 +38,24 @@ class GradeController extends ApiController
     {
         $this->need($request, 'grades.manage');
 
-        return Grade::orderBy('grade_id')->get()->map(fn ($g) => Resources::grade($g));
+        $grades = Grade::query()
+            ->when($request->query('department_id'), fn ($q, $dept) => $q->whereIn('student_id', User::where('department_id', $dept)->select('user_id')))
+            ->when($request->query('program'), fn ($q, $program) => $q->whereIn('student_id', \App\Models\StudentProfile::where('program', $program)->select('user_id')))
+            ->when($request->query('subject'), fn ($q, $subject) => $q->where('course_code', $subject))
+            ->when($request->query('academic_year'), fn ($q, $year) => $q->where('academic_year', $year))
+            ->when($request->query('semester'), fn ($q, $semester) => $q->where('semester', $semester))
+            ->whereExists(function ($query) {
+                $query->selectRaw('1')->from('enrollments')->join('enrollment_subjects', 'enrollment_subjects.enrollment_id', '=', 'enrollments.enrollment_id')
+                    ->whereColumn('enrollments.student_id', 'grades.student_id')->whereColumn('enrollment_subjects.subject_code', 'grades.course_code')->where('enrollments.status', 'Enrolled');
+            })
+            ->orderBy('grade_id')->get();
+        $enrollments = \App\Models\Enrollment::whereIn('student_id', $grades->pluck('student_id'))->where('status', 'Enrolled')->get();
+        $links = \App\Models\EnrollmentSubject::whereIn('enrollment_id', $enrollments->pluck('enrollment_id'))->get()->groupBy('enrollment_id');
+        $byStudent = $enrollments->groupBy('student_id');
+        return $grades->filter(fn ($grade) => ($byStudent->get($grade->student_id) ?? collect())->contains(
+            fn ($enrollment) => Rules::termParts($enrollment->term) === [$grade->academic_year, $grade->semester]
+                && ($links->get($enrollment->enrollment_id) ?? collect())->contains('subject_code', $grade->course_code),
+        ))->map(fn ($grade) => Resources::grade($grade))->values();
     }
 
     // PATCH /api/grades/{id}   { prelim, midterm, finals }   percentages 0-100, null = not posted yet

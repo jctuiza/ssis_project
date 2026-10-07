@@ -17,6 +17,7 @@ const SettingsPage = lazy(() => import('../pages/admin/SettingsPage'))
 const Announcements = lazy(() => import('../pages/admin/Announcements'))
 const RegistrarDashboard = lazy(() => import('../pages/registrar/RegistrarDashboard'))
 const RegistrarEnrollment = lazy(() => import('../pages/registrar/RegistrarEnrollment'))
+const RegistrarSubjects = lazy(() => import('../pages/registrar/RegistrarSubjects'))
 const RegistrarGrades = lazy(() => import('../pages/registrar/RegistrarGrades'))
 const CashierDashboard = lazy(() => import('../pages/cashier/CashierDashboard'))
 const StudentAccounts = lazy(() => import('../pages/cashier/StudentAccounts'))
@@ -58,6 +59,7 @@ const staffPages = (user) => ({
   settings: [['settings.manage'], () => <SettingsPage />],
   students: [['students.view'], () => <StudentsPage description={user.departmentId ? 'Students under your department.' : 'Search, register and review student records.'} />],
   enrollment: [['enrollment.manage'], () => <RegistrarEnrollment />],
+  subjects: [['enrollment.manage'], () => <RegistrarSubjects />],
   grades: [['grades.manage'], () => <RegistrarGrades />],
   clearance: [
     ['clearance.registrar', 'clearance.department'],

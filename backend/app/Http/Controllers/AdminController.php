@@ -182,12 +182,13 @@ class AdminController extends ApiController
     public function departments(Request $request)
     {
         $user = $request->user();
-        if (! $this->can($user, 'departments.view', 'users.manage', 'students.manage')) {
+        if (! $this->can($user, 'departments.view', 'users.manage', 'students.manage', 'enrollment.manage', 'grades.manage')) {
             throw new ApiError('You do not have permission to do that.', 403);
         }
         $studentRole = Role::where('key', 'student')->value('role_id');
 
         return Department::orderBy('department_id')->get()->map(fn ($d) => [
+            'programs' => collect(config('academic_programs.'.strtoupper($d->code), []))->merge(\App\Models\StudentProfile::whereIn('user_id', User::where('department_id', $d->department_id)->select('user_id'))->pluck('program'))->merge(\App\Models\Subject::where('department_id', $d->department_id)->whereNotNull('program')->pluck('program'))->filter()->unique()->values()->all(),
             'id' => $d->department_id, 'code' => $d->code, 'name' => $d->name, 'head' => $d->head_name,
             'students' => User::where('department_id', $d->department_id)->where('role_id', $studentRole)->count(),
             'staff' => User::where('department_id', $d->department_id)->where('role_id', '!=', $studentRole)->count(),
@@ -208,6 +209,8 @@ class AdminController extends ApiController
         return [
             'systemName' => $s->system_name, 'currentTerm' => $s->current_term, 'enrollmentOpen' => $s->enrollment_open,
             'documentRequestsOpen' => $s->document_requests_open, 'emailNotifications' => $s->email_notifications, 'maintenanceMode' => $s->maintenance_mode,
+            'academicTerms' => \App\Models\Enrollment::query()->pluck('term')->merge(\App\Models\Assessment::query()->pluck('term'))->push($s->current_term)->unique()->sortDesc()->values()->all(),
+            'tuitionPerUnit' => (float) ($s->tuition_per_unit ?? 1500), 'miscFees' => (float) ($s->misc_fees ?? 6500),
         ];
     }
 
@@ -226,12 +229,29 @@ class AdminController extends ApiController
         if ($name === '' || $term === '') {
             throw new ApiError('System name and academic term are required.');
         }
+        if (! Rules::termParts($term)) {
+            throw new ApiError('Select a term containing an academic year and First or Second Semester.', 422, ['currentTerm' => 'For example: 1st Semester, A.Y. 2026–2027']);
+        }
+        // Fees: only amounts between 0 and 1,000,000; they apply to assessments created from now on.
+        $fees = [];
+        foreach (['tuitionPerUnit' => 'tuition_per_unit', 'miscFees' => 'misc_fees'] as $key => $column) {
+            $value = $request->input($key);
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if (! is_numeric($value) || $value < 0 || $value > 1000000) {
+                throw new ApiError('Fees must be amounts between 0 and 1,000,000.', 422, [$key => 'Enter an amount between 0 and 1,000,000.']);
+            }
+            $fees[$column] = round((float) $value, 2);
+        }
         $settings = Rules::settings();
-        $settings->update([
+        $settings->update($fees + [
             'system_name' => mb_substr($name, 0, 150), 'current_term' => mb_substr($term, 0, 60),
             'enrollment_open' => $request->boolean('enrollmentOpen'), 'document_requests_open' => $request->boolean('documentRequestsOpen'),
             'email_notifications' => $request->boolean('emailNotifications'), 'maintenance_mode' => $request->boolean('maintenanceMode'),
         ]);
+        Rules::forgetSettings(); // the settings are cached; clear them so every request sees the new values immediately
+        \App\Support\AcademicEnrollment::syncAll();
         $this->log($request, 'Updated system settings', 'settings', 1);
 
         return $this->settingsResource($settings->fresh());

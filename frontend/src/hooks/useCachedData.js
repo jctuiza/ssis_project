@@ -14,7 +14,17 @@ export default function useCachedData(resource, loader, deps = []) {
   const reload = useCallback(() => cache.fetch(key, () => latest.current(), true), [key])
   useEffect(() => {
     cache.fetch(key, () => latest.current())
-    return onDataChange(reload)
+    const stop = onDataChange(reload)
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') reload()
+    }
+    window.addEventListener('focus', refreshVisible)
+    document.addEventListener('visibilitychange', refreshVisible)
+    return () => {
+      stop()
+      window.removeEventListener('focus', refreshVisible)
+      document.removeEventListener('visibilitychange', refreshVisible)
+    }
   }, [key, reload])
   return { ...snapshot, reload }
 }

@@ -16,6 +16,8 @@ class Assessment extends Model
     {
         return [
             'tuition' => 'float',
+            'tuition_pending' => 'boolean',
+            'tuition_rate' => 'float',
             'misc_fees' => 'float',
         ];
     }

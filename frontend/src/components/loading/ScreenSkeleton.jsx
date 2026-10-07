@@ -1,3 +1,4 @@
+import { SUBJECT_COLUMNS } from '../../config/subjectColumns'
 import Skeleton, { LoadingRegion } from './Skeleton'
 import TableSkeleton from './TableSkeleton'
 import StudentHomeSkeleton from './StudentHomeSkeleton'
@@ -7,7 +8,7 @@ import { cardClass } from '../../utils/styles'
 const table = (columns, search = true, filters = false, actions = false) => ({ kind: 'table', columns, search, filters, actions })
 export const STAFF_TABLE_LAYOUTS = {
   users: table(5,true,true,true), 'student-accounts': table(5,true,true,true), 'staff-accounts': table(5,true,true,true),
-  students: table(6,true,true,true), enrollment: table(7,true,true,true), grades: table(9,true,true,true),
+  students: table(6,true,true,true), enrollment: table(7,true,true,false), grades: table(9,true,true,true),
   clearance: table(6,true,true,true), documents: table(6,true,true,true), requests: table(6,true,true,true),
   accounts: table(6,true,true), assessments: table(6), payments: table(5,true,true,true),
   'document-fees': table(6,true,true,true), transactions: table(8,true,true), monitor: table(8,true,true),
@@ -18,6 +19,7 @@ export function layoutForPage(role, page) {
   if (role === 'student') return { kind: ({ home:'student-home', enrollment:'enrollment', grades:'grades', clearance:'clearance', documents:'documents', payments:'payments', id:'id' })[page] ?? 'student-home' }
   if (page === 'dashboard') return { kind: 'dashboard' }
   if (page === 'roles') return { kind: 'roles' }
+  if (page === 'subjects') return { kind: 'table', columns: SUBJECT_COLUMNS.length, search: true, actions: true }
   if (page === 'settings') return { kind: 'settings' }
   if (page === 'reports') return { kind: 'reports' }
   return STAFF_TABLE_LAYOUTS[page] ?? { kind: 'dashboard' }
@@ -50,7 +52,7 @@ export default function ScreenSkeleton({ kind = 'table', role = 'registrar', ...
   if (kind === 'table') return <TableSkeleton {...tableProps} />
   return <LoadingRegion><div className={kind === 'payments' || kind === 'profile' || kind === 'reports' ? 'space-y-7' : 'space-y-6'}>
     {kind === 'enrollment' && <>
-      <Box title><Fields /></Box>
+      <Box title><Fields count={9} /></Box>
       <TableSkeleton columns={4} search={false} title />
     </>}
     {kind === 'grades' && <>
@@ -82,7 +84,7 @@ export default function ScreenSkeleton({ kind = 'table', role = 'registrar', ...
       <Box title description><div className="max-w-md"><FormFields /><Skeleton className="mt-4 h-10 w-40" /></div><Skeleton className="mt-4 h-4 w-64 max-w-full" /></Box>
     </>}
     {kind === 'roles' && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0,1,2,3,4].map(i => <Box key={i} title description><Lines count={4} /></Box>)}</section>}
-    {kind === 'settings' && <Box><div className="grid gap-4 border-b border-slate-100 pb-5 dark:border-white/10 sm:grid-cols-2"><FormFields count={1} /><FormFields count={1} /></div><div className="divide-y divide-slate-100 dark:divide-white/10">{[0,1,2,3].map(i => <div key={i} className="flex items-center justify-between gap-4 py-4"><div className="flex-1"><Skeleton className="h-5 w-40" /><Skeleton className="mt-1 h-4 w-3/4" /></div><Skeleton className="h-6 w-11 !rounded-full" /></div>)}</div><Skeleton className="ml-auto mt-5 h-10 w-36" /></Box>}
+    {kind === 'settings' && <Box><div className="grid gap-4 border-b border-slate-100 pb-5 dark:border-white/10 sm:grid-cols-2"><FormFields count={1} /><FormFields count={1} /><FormFields count={1} /><FormFields count={1} /><FormFields count={1} /></div><div className="divide-y divide-slate-100 dark:divide-white/10">{[0,1,2,3].map(i => <div key={i} className="flex items-center justify-between gap-4 py-4"><div className="flex-1"><Skeleton className="h-5 w-40" /><Skeleton className="mt-1 h-4 w-3/4" /></div><Skeleton className="h-6 w-11 !rounded-full" /></div>)}</div><Skeleton className="ml-auto mt-5 h-10 w-36" /></Box>}
     {kind === 'reports' && <><SummaryPlaceholders /><section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">{[0,1,2].map(i => <Box key={i} title><div className="space-y-4">{[0,1,2].map(j => <div key={j}><div className="mb-1.5 flex justify-between"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-5 w-8" /></div><Skeleton className="h-2 w-full" /></div>)}</div></Box>)}</section></>}
   </div></LoadingRegion>
 }

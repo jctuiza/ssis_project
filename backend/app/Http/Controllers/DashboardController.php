@@ -27,14 +27,15 @@ class DashboardController extends ApiController
     public function cashier(Request $request)
     {
         $user = $this->need($request, 'payments.manage');
-        $assessments = Assessment::all();
+        $assessments = Assessment::where('term', Rules::currentTerm())->get();
         $balances = $assessments->mapWithKeys(fn ($a) => [$a->assessment_id => Rules::balanceOf($a)]);
 
         return [
             'totals' => [
                 'transactions' => Transaction::count(),
                 'today' => Transaction::whereDate('created_at', today())->count(),
-                'pending' => Transaction::where('status', 'Pending')->count(),
+                'pending' => $assessments->filter(fn ($a) => $a->tuition_pending || $balances[$a->assessment_id] > 0)->count()
+                    + Transaction::where('type', 'document_fee')->where('status', 'Pending')->count(),
                 'paid' => Transaction::where('status', 'Paid')->count(),
                 'outstanding' => round($balances->sum(), 2),
             ],
@@ -52,8 +53,8 @@ class DashboardController extends ApiController
         return [
             'totals' => [
                 'students' => $this->studentCount(),
-                'enrollmentRequests' => Enrollment::where('status', 'Pending')->count(),
-                'pendingClearance' => Clearance::where('office', 'Registrar')->where('status', '!=', 'Cleared')->count(),
+                'enrollmentRequests' => User::whereHas('role', fn ($query) => $query->where('key', 'student'))->count() - Enrollment::where('term', Rules::currentTerm())->where('status', 'Enrolled')->count(),
+                'pendingClearance' => Clearance::where('term', Rules::currentTerm())->where('office', 'Registrar')->where('status', '!=', 'Cleared')->count(),
                 'pendingRequests' => DocumentRequest::whereIn('status', ['Submitted', 'Under Review', 'Payment Recorded'])->count(),
             ],
             'activities' => Rules::feedFor($user),
@@ -69,7 +70,7 @@ class DashboardController extends ApiController
             throw new ApiError('This is another department.', 403);
         }
         $mine = User::where('department_id', $id)->select('user_id');
-        $pending = Clearance::where('office', 'Department')->where('status', '!=', 'Cleared')->whereIn('student_id', $mine)->orderBy('clearance_id')->get();
+        $pending = Clearance::where('term', Rules::currentTerm())->where('office', 'Department')->where('status', '!=', 'Cleared')->whereIn('student_id', $mine)->orderBy('clearance_id')->get();
 
         return [
             'totals' => [

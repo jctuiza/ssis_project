@@ -16,7 +16,7 @@ export default function Assessments() {
         { key: 'code', label: 'Assessment', sortable: true },
         { key: 'studentName', label: 'Student', sortable: true, render: student },
         { key: 'term', label: 'Term' },
-        { key: 'tuition', label: 'Tuition', render: money('tuition') },
+        { key: 'tuition', label: 'Tuition', render: (a) => a.tuitionPending ? 'Awaiting subjects' : peso(a.tuition) },
         { key: 'misc', label: 'Misc. fees', render: money('misc') },
         { key: 'total', label: 'Total', sortable: true, render: money('total') },
       ]}

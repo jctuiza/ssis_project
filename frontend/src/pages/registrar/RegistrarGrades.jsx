@@ -1,4 +1,8 @@
-import TableSkeleton from '../../components/loading/TableSkeleton'
+import { GRADE_COLUMNS } from '../../config/gradeColumns'
+import AcademicFilters from '../../components/forms/AcademicFilters'
+import Select from '../../components/forms/Select'
+import useAcademicFilters from '../../hooks/useAcademicFilters'
+import * as adminService from '../../services/admin/adminService'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
@@ -13,12 +17,18 @@ import { useToast } from '../../context/toast'
 import { SEMESTERS } from '../../config/constants'
 import * as gradeService from '../../services/shared/gradeService'
 
-const show = (v) => (v == null ? '--' : v.toFixed(2))
 
 // Grades are percentages per period. The student's Grades page and the Records/GWA page read the same rows.
 export default function RegistrarGrades() {
   const { notify } = useToast()
-  const { data, loading, error } = useService(gradeService.getAll, [], "pages/registrar/RegistrarGrades.jsx:1")
+  const filters = useAcademicFilters()
+  const settings = useService(adminService.getSettings, [], 'academic:settings')
+  const [year, setYear] = useState('')
+  const [semester, setSemester] = useState('')
+  const defaultYear = settings.data?.currentTerm?.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-') ?? ''
+  const selectedYear = year || defaultYear
+  const selectedSemester = semester || (/2nd|Second/i.test(settings.data?.currentTerm ?? '') ? 'Second Semester' : 'First Semester')
+  const { data, loading, error } = useService(() => filters.ready && selectedYear ? gradeService.getAll({ department_id: filters.departmentId, program: filters.program, academic_year: selectedYear, semester: selectedSemester }) : Promise.resolve([]), [filters.departmentId, filters.program, selectedYear, selectedSemester], 'registrar:filtered-grades')
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({ prelim: '', midterm: '', finals: '' })
   const [saving, setSaving] = useState(false)
@@ -41,25 +51,21 @@ export default function RegistrarGrades() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades" title="Grades" description="Encode and correct prelim, midterm and finals grades (0–100). Students see changes right away." />
-      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<TableSkeleton columns={9} search filters actions />}>
+      <AcademicFilters filters={filters} />
+      <Card><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Select label="Academic year" value={selectedYear} placeholder="Select academic year" options={[...new Set([defaultYear, ...(settings.data?.academicTerms ?? []).map(term => term.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-'))].filter(Boolean))]} onChange={event => setYear(event.target.value)} />
+        <Select label="Semester" value={selectedSemester} options={SEMESTERS} onChange={event => setSemester(event.target.value)} />
+      </div></Card>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<Card padded={false}><DataTable columns={GRADE_COLUMNS} loading searchKeys={['studentId', 'studentName']} actions={() => null} /></Card>}>
         {data && (
           <Card padded={false}>
             <DataTable
-              columns={[
-                { key: 'studentId', label: 'Student ID', sortable: true },
-                { key: 'studentName', label: 'Name', sortable: true },
-                { key: 'code', label: 'Course code', sortable: true },
-                { key: 'subject', label: 'Subject' },
-                { key: 'term', label: 'Term' },
-                { key: 'prelim', label: 'Prelim', render: (g) => show(g.prelim) },
-                { key: 'midterm', label: 'Midterm', render: (g) => show(g.midterm) },
-                { key: 'finals', label: 'Finals', render: (g) => show(g.finals) },
-                { key: 'finalGrade', label: 'Final', sortable: true, render: (g) => (g.finalGrade == null ? '--' : `${g.finalGrade.toFixed(2)} (${g.gradePoint.toFixed(2)})`) },
-              ]}
+              columns={GRADE_COLUMNS}
               rows={data}
+              empty={filters.ready ? "No enrolled students match these filters." : "Select a department and program to view grade records."}
               searchKeys={['studentId', 'studentName', 'code', 'subject']}
               searchPlaceholder="Search student, course code or subject"
-              filter={{ key: 'semester', options: SEMESTERS }}
+             
               actions={(g) => <Button variant="ghost" size="sm" onClick={() => open(g)}><Pencil className="h-3.5 w-3.5" />Edit</Button>}
             />
           </Card>

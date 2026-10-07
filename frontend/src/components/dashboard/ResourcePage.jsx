@@ -1,4 +1,3 @@
-import TableSkeleton from '../loading/TableSkeleton'
 import PageHeader from '../ui/PageHeader'
 import Card from '../ui/Card'
 import DataTable from '../tables/DataTable'
@@ -8,13 +7,14 @@ import useService from '../../hooks/useService'
 // Generic "header + table" page driven by a service function. Used by most list pages.
 export default function ResourcePage({
   eyebrow, title, description, load, deps = [], columns, searchKeys, searchPlaceholder, filter,
-  rowKey, pageSize, actions, headerAction, summary, empty,
+  rowKey, pageSize, actions, headerAction, summary, empty, loadingRowCount, headerContent,
 }) {
   const { data, loading, error } = useService(load, deps, `resource:${title}`)
   return (
     <div className="space-y-6">
       <PageHeader eyebrow={eyebrow} title={title} description={description} action={headerAction} />
-      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<TableSkeleton columns={columns.length} search={Boolean(searchKeys?.length)} filters={Boolean(filter)} actions={Boolean(actions)} />}>
+      {headerContent}
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<Card padded={false}><DataTable columns={columns} rows={data ?? []} loading loadingRowCount={loadingRowCount} rowKey={rowKey} searchKeys={searchKeys} searchPlaceholder={searchPlaceholder} filter={filter} pageSize={pageSize} actions={actions} /></Card>}>
         {data && summary && summary(data)}
         {data && (
           <Card padded={false}>

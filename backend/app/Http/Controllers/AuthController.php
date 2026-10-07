@@ -8,14 +8,26 @@ use App\Models\User;
 use App\Support\Resources;
 use App\Support\Rules;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends ApiController
 {
+    private const ROLES_KEY = 'ssis:public-roles';
+
     // GET /api/roles/public   (roles shown on the login pages)
+    // Needed by every login page and almost never changes, so it is cached for 10 minutes.
+    // The X-Cache response header says whether the answer came from the cache (HIT) or from the database (MISS).
     public function publicRoles()
     {
-        return Role::orderBy('role_id')->get(['key', 'label'])->map(fn ($r) => ['key' => $r->key, 'label' => $r->label]);
+        $hit = Cache::has(self::ROLES_KEY);
+        $roles = Cache::remember(
+            self::ROLES_KEY,
+            600,
+            fn () => Role::orderBy('role_id')->get(['key', 'label'])->map(fn ($r) => ['key' => $r->key, 'label' => $r->label])->all(),
+        );
+
+        return response()->json($roles)->header('X-Cache', $hit ? 'HIT' : 'MISS');
     }
 
     // POST /api/login  { role, identifier, password }  ->  { user, roles, token }

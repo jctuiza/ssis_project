@@ -39,8 +39,9 @@ export default function StudentPayments() {
                   <SummaryCard label="Payment status" value={a.status} icon={Wallet} />
                 </section>
                 <Card title="Assessment" description={a.term}>
+                  {a.tuitionPending && <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">Miscellaneous fees are shown below. Tuition and the final total will be updated once the Registrar assigns matching subjects.</p>}
                   <InfoGrid columns="sm:grid-cols-3" items={[
-                    { label: 'Tuition', value: peso(a.tuition) },
+                    { label: 'Tuition', value: a.tuitionPending ? 'Awaiting subjects' : peso(a.tuition) },
                     { label: 'Miscellaneous fees', value: peso(a.misc) },
                     { label: 'Status', value: <StatusBadge status={a.status} /> },
                   ]} />

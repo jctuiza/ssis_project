@@ -18,7 +18,7 @@ class ClearanceController extends ApiController
     {
         $student = $this->ownOrStaff($request, $id, 'students.view', 'clearance.registrar', 'clearance.department', 'payments.manage');
 
-        return Clearance::where('student_id', $student->user_id)->get()
+        return Clearance::where('term', Rules::currentTerm())->where('student_id', $student->user_id)->get()
             ->sortBy(fn ($c) => array_search($c->office, Rules::OFFICES, true))->values()
             ->map(fn ($c) => Resources::clearance($c));
     }
@@ -33,7 +33,7 @@ class ClearanceController extends ApiController
         }
         $dept = $this->scopeDepartment($user, $request->query('department_id'));
 
-        return Clearance::where('office', $office)
+        return Clearance::where('term', Rules::currentTerm())->where('office', $office)
             ->when($dept, fn ($q) => $q->whereIn('student_id', User::where('department_id', $dept)->select('user_id')))
             ->orderBy('clearance_id')->get()->map(fn ($c) => Resources::clearance($c));
     }
@@ -43,7 +43,7 @@ class ClearanceController extends ApiController
     public function update(Request $request, int $id)
     {
         $user = $this->need($request, ...array_keys(self::OFFICE_BY_PERMISSION));
-        $row = Clearance::find($id) ?? throw new ApiError('Clearance record not found.', 404);
+        $row = Clearance::where('term', Rules::currentTerm())->find($id) ?? throw new ApiError('Clearance record not found.', 404);
         $allowed = array_values(array_filter(array_map(fn ($p) => self::OFFICE_BY_PERMISSION[$p] ?? null, $user->permissionKeys())));
         if (! in_array($row->office, $allowed, true)) {
             throw new ApiError("Your role cannot update {$row->office} clearance.", 403);

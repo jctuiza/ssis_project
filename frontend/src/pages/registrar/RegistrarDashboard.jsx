@@ -14,7 +14,7 @@ export default function RegistrarDashboard() {
       build={(d) => ({
         stats: [
           { label: 'Total students', value: d.totals.students, icon: Users },
-          { label: 'Enrollment requests', value: d.totals.enrollmentRequests, icon: GraduationCap },
+          { label: 'Not enrolled', value: d.totals.enrollmentRequests, icon: GraduationCap },
           { label: 'Pending clearance', value: d.totals.pendingClearance, icon: ClipboardCheck },
           { label: 'Pending document requests', value: d.totals.pendingRequests, icon: FileText },
         ],

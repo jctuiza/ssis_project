@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import Skeleton from '../loading/Skeleton'
 import { ArrowUpDown } from 'lucide-react'
 import SearchBar from '../forms/SearchBar'
 import Pagination from './Pagination'
 
 // columns: [{ key, label, sortable?, render?(row) }]   filter: { key, options: [] }
 export default function DataTable({
-  columns, rows, rowKey = 'id', searchKeys = [], searchPlaceholder = 'Search…', filter,
+  columns, rows = [], loading = false, loadingRowCount, rowKey = 'id', searchKeys = [], searchPlaceholder = 'Search…', filter,
   pageSize = 8, actions, empty = 'No records found.', toolbar,
 }) {
   const [query, setQuery] = useState('')
@@ -30,10 +31,11 @@ export default function DataTable({
   const current = Math.min(page, totalPages)
   const visible = list.slice((current - 1) * pageSize, current * pageSize)
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
+  const skeletonRows = Math.max(1, Math.min(pageSize, loadingRowCount ?? (rows.length || pageSize)))
   const hasToolbar = searchKeys.length > 0 || filter || toolbar
 
   return (
-    <div>
+    <div aria-busy={loading || undefined}>
       {hasToolbar && (
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
           {searchKeys.length > 0 && (
@@ -67,7 +69,7 @@ export default function DataTable({
               {columns.map((c) => (
                 <th key={c.key} className="whitespace-nowrap px-5 py-3 font-medium">
                   {c.sortable ? (
-                    <button type="button" onClick={() => toggleSort(c.key)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-300">
+                    <button type="button" disabled={loading} onClick={() => toggleSort(c.key)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-300">
                       {c.label}<ArrowUpDown className="h-3 w-3" />
                     </button>
                   ) : c.label}
@@ -77,10 +79,16 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/10">
-            {visible.length === 0 && (
+            {loading && Array.from({ length: skeletonRows }, (_, index) => (
+              <tr key={`loading-${index}`} aria-hidden="true">
+                {columns.map((column) => <td key={column.key} className="px-5 py-3.5 text-slate-700 dark:text-slate-200"><Skeleton className={column.skeletonClassName ?? 'h-5 w-full min-w-12 max-w-48'} /></td>)}
+                {actions && <td className="px-5 py-3.5"><Skeleton className="ml-auto h-8 w-24" /></td>}
+              </tr>
+            ))}
+            {!loading && visible.length === 0 && (
               <tr><td colSpan={columns.length + (actions ? 1 : 0)} className="px-5 py-10 text-center text-slate-400">{empty}</td></tr>
             )}
-            {visible.map((row) => (
+            {!loading && visible.map((row) => (
               <tr key={row[rowKey]} className="transition hover:bg-page dark:hover:bg-white/[0.03]">
                 {columns.map((c) => (
                   <td key={c.key} className="px-5 py-3.5 text-slate-700 dark:text-slate-200">{c.render ? c.render(row) : row[c.key]}</td>
@@ -92,7 +100,7 @@ export default function DataTable({
         </table>
       </div>
 
-      <Pagination page={current} totalPages={totalPages} total={list.length} pageSize={pageSize} onChange={setPage} />
+      {loading ? <div role="status" aria-label="Loading records" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/10"><Skeleton className="h-4 w-36" /><div className="flex gap-2"><Skeleton className="h-8 w-8" /><Skeleton className="h-8 w-8" /></div></div> : <Pagination page={current} totalPages={totalPages} total={list.length} pageSize={pageSize} onChange={setPage} />}
     </div>
   )
 }

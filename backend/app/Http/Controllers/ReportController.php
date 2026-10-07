@@ -76,7 +76,7 @@ class ReportController extends ApiController
         $requests = DocumentRequest::whereIn('student_id', $ids)->get();
         $assessments = Assessment::all();
         $transactions = Transaction::all();
-        $clearances = Clearance::all();
+        $clearances = Clearance::where('term', Rules::currentTerm())->get();
 
         if ($kind === 'cashier') {
             return [

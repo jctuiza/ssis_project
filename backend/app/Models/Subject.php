@@ -13,4 +13,9 @@ class Subject extends Model
     public $incrementing = false;
     protected $keyType = 'string';
     protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return ['units' => 'integer', 'department_id' => 'integer'];
+    }
 }

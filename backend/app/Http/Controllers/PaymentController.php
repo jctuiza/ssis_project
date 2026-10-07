@@ -58,7 +58,7 @@ class PaymentController extends ApiController
     {
         $this->need($request, 'payments.manage');
 
-        return Assessment::orderBy('assessment_id')->get()->map(fn ($a) => Resources::assessment($a));
+        return Assessment::where('term', Rules::currentTerm())->orderBy('assessment_id')->get()->map(fn ($a) => Resources::assessment($a));
     }
 
     // GET /api/transactions   (Cashier, and the Admin in read-only mode)
@@ -91,16 +91,18 @@ class PaymentController extends ApiController
                 throw new ApiError('The payment cannot be more than the remaining balance of '.Fmt::peso($balance).'.');
             }
             $txn = Rules::recordTuitionPayment($assessment, $value, Rules::paymentDescription($assessment, $value), $method, $actor);
-            Rules::syncCashierClearance($assessment->student_id, by: $actor);
+            if ($assessment->term === Rules::currentTerm()) {
+                Rules::syncCashierClearance($assessment->student_id, by: $actor);
+            }
 
             return $txn;
         });
 
         $remaining = Rules::balanceOf($assessment);
         $to = fn (string $message) => Rules::notify('student', $message, $assessment->student_id, page: 'payments');
-        if ($remaining > 0) {
+        if ($remaining > 0 || $assessment->tuition_pending) {
             $to('Partial payment of '.Fmt::peso($value)." recorded ({$txn->reference_no}). Total paid so far: ".Fmt::peso(Rules::tuitionPaid($assessment->assessment_id)).'.');
-            $to('Balance updated: your remaining balance is '.Fmt::peso($remaining).'.');
+            $to('Balance updated: your remaining assessed balance is '.Fmt::peso($remaining).'.'.($assessment->tuition_pending ? ' Tuition is still awaiting subject assignment.' : ''));
         } else {
             $to('Payment of '.Fmt::peso($value)." recorded ({$txn->reference_no}). Your balance is fully paid. Thank you!");
             $to('Balance updated: your outstanding balance is ₱0.00 and your status is Fully Paid.');

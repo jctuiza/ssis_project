@@ -37,7 +37,7 @@ class StudentController extends ApiController
     public function dashboard(Request $request, string $id)
     {
         $student = $this->ownOrStaff($request, $id, 'students.view');
-        $clearances = Clearance::where('student_id', $student->user_id)->get();
+        $clearances = Clearance::where('term', Rules::currentTerm())->where('student_id', $student->user_id)->get();
         $assessment = Rules::assessmentFor($student->user_id);
         $requests = DocumentRequest::where('student_id', $student->user_id)->orderByDesc('created_at')->orderByDesc('document_request_id')->get();
 
@@ -115,15 +115,15 @@ class StudentController extends ApiController
                 'signature' => $v['name'],
             ]);
             $enrollment = Enrollment::create([
-                'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Enrolled', 'submitted_at' => now(),
+                'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Not Enrolled', 'submitted_at' => now(),
                 'reviewed_by' => $actor->user_id, 'reviewed_at' => now(), 'remarks' => 'Registered by the Registrar.',
             ]);
-            foreach (Rules::offeredSubjects($v['_department']) as $subject) {
-                EnrollmentSubject::create(['enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code]);
+            foreach (Rules::offeredSubjects($v['_department'], $v['program']) as $subject) {
+                EnrollmentSubject::create(['enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code, 'subject_name' => $subject->name, 'units' => $subject->units, 'schedule' => $subject->schedule]);
             }
             foreach (Rules::OFFICES as $office) {
                 Clearance::create([
-                    'student_id' => $student->user_id, 'office' => $office, 'status' => $office === 'Registrar' ? 'Cleared' : 'Pending',
+                    'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'office' => $office, 'status' => $office === 'Registrar' ? 'Cleared' : 'Pending',
                     'remarks' => '', 'updated_by' => $office === 'Registrar' ? $actor->user_id : null,
                 ]);
             }
@@ -154,6 +154,7 @@ class StudentController extends ApiController
                 'program' => $v['program'], 'year_level' => $v['yearLevel'], 'birthdate' => $v['birthdate'], 'address' => $v['address'],
                 'emergency_name' => $v['emergencyName'] ?? '', 'emergency_contact' => $v['emergencyContact'] ?? '', 'signature' => $v['name'],
             ]);
+            \App\Support\AcademicEnrollment::prepare($student->fresh());
             Rules::notify('student', 'The Registrar updated your student information.', $student->user_id, page: 'profile');
             Rules::logActivity($actor, "Updated student information of {$v['name']} ({$student->username})", 'student', $student->username);
         });

@@ -11,6 +11,7 @@ use App\Http\Controllers\GradeController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\SubjectController;
 use Illuminate\Support\Facades\Route;
 
 // Public: the login pages need the role list, and the login itself is rate limited (brute-force protection).
@@ -38,6 +39,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('enrollment', [EnrollmentController::class, 'submit']);
     Route::get('enrollment/student/{id}', [EnrollmentController::class, 'forStudent']);
     Route::patch('enrollment/{id}', [EnrollmentController::class, 'updateStatus'])->whereNumber('id');
+
+    Route::get('subjects', [SubjectController::class, 'index']);
+    Route::post('subjects', [SubjectController::class, 'store']);
+    Route::patch('subjects/{code}', [SubjectController::class, 'update'])->where('code', '[A-Za-z0-9 .\-]+');
+    Route::delete('subjects/{code}', [SubjectController::class, 'destroy'])->where('code', '[A-Za-z0-9 .\-]+');
 
     Route::get('grades', [GradeController::class, 'index']);
     Route::get('grades/terms/{id}', [GradeController::class, 'terms']);

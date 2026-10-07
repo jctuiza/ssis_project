@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -17,8 +18,6 @@ class User extends Authenticatable
 
     protected $hidden = ['password', 'profile_photo'];
 
-    /** @var array<int, array<int, string>> permission keys per role id, cached for the request */
-    private static array $permissionCache = [];
 
     protected function casts(): array
     {
@@ -43,13 +42,21 @@ class User extends Authenticatable
         return $this->hasOne(StudentProfile::class, 'user_id', 'user_id');
     }
 
-    /** Permission keys granted by this user's role (for example grades.manage). */
+    /**
+     * Permission keys granted by this user's role (for example grades.manage). Checked on every request, so they are kept
+     * in the cache (10 minutes) between requests. After changing roles or permissions in the
+     * database, run: php artisan cache:clear
+     */
     public function permissionKeys(): array
     {
-        return self::$permissionCache[$this->role_id] ??= Permission::query()
-            ->join('role_permissions', 'role_permissions.permission_id', '=', 'permissions.permission_id')
-            ->where('role_permissions.role_id', $this->role_id)
-            ->pluck('permissions.key')->all();
+        return Cache::remember(
+            "ssis:role-permissions:{$this->role_id}",
+            600,
+            fn () => Permission::query()
+                ->join('role_permissions', 'role_permissions.permission_id', '=', 'permissions.permission_id')
+                ->where('role_permissions.role_id', $this->role_id)
+                ->pluck('permissions.key')->all(),
+        );
     }
 
     public function isStudent(): bool

@@ -98,7 +98,7 @@ class Resources
 
         return [
             'id' => $e->enrollment_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => $profile?->program ?? '',
-            'yearLevel' => $profile?->year_level, 'departmentId' => $s?->department_id, 'term' => $e->term, 'status' => $e->status,
+            'yearLevel' => $profile?->year_level, 'departmentId' => $s?->department_id, 'term' => $e->term, 'status' => $e->status === 'Enrolled' ? 'Enrolled' : 'Not Enrolled',
             'subjects' => Rules::subjectCodesOf($e), 'units' => Rules::enrollmentUnits($e), 'submittedAt' => Fmt::date($e->submitted_at),
         ];
     }
@@ -109,7 +109,7 @@ class Resources
         $s = User::find($g->student_id);
 
         return [
-            'id' => $g->grade_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'departmentId' => $s?->department_id,
+            'id' => $g->grade_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => self::programOf($g->student_id), 'departmentId' => $s?->department_id,
             'code' => $g->course_code, 'subject' => $g->description, 'units' => $g->units, 'academicYear' => $g->academic_year,
             'semester' => $g->semester, 'term' => "A.Y. {$g->academic_year}, {$g->semester}", 'prelim' => $g->prelim, 'midterm' => $g->midterm,
             'finals' => $g->finals, 'finalGrade' => $final, 'gradePoint' => self::toGradePoint($final),
@@ -137,7 +137,7 @@ class Resources
             'id' => $a->assessment_id, 'code' => 'ASM-'.str_pad((string) $a->assessment_id, 4, '0', STR_PAD_LEFT), 'studentId' => $s?->username,
             'studentName' => $s?->name, 'program' => self::programOf($a->student_id), 'departmentId' => $s?->department_id, 'term' => $a->term,
             'tuition' => $a->tuition, 'misc' => $a->misc_fees, 'total' => $total, 'paid' => $paid, 'balance' => max(0.0, round($total - $paid, 2)),
-            'status' => Rules::paymentStatusOf($a),
+            'status' => Rules::paymentStatusOf($a), 'tuitionPending' => (bool) $a->tuition_pending,
             'paymentCount' => Transaction::where('assessment_id', $a->assessment_id)->where('type', 'tuition')->where('status', 'Paid')->count(),
         ];
     }

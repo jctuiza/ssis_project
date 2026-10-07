@@ -11,7 +11,7 @@ import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../../config/constants'
 import { peso } from '../../utils/format'
 import * as paymentService from '../../services/cashier/paymentService'
 
-const student = (a) => (<div><p className="font-medium text-slate-900 dark:text-white">{a.studentName}</p><p className="text-xs text-slate-400">{a.studentId}</p></div>)
+const student = (a) => (<div><p className="font-medium text-slate-900 dark:text-white">{a.studentName}</p><p className="text-xs text-slate-400">{a.studentId}</p>{a.tuitionPending && <p className="text-xs text-amber-600 dark:text-amber-400">Tuition awaiting subjects</p>}</div>)
 const money = (key) => (row) => peso(row[key])
 
 export default function Payments() {
@@ -71,7 +71,7 @@ export default function Payments() {
           <Select label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)} options={PAYMENT_METHODS} />
           {remaining !== null && (
             <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-slate-700 dark:bg-violet-500/10 dark:text-slate-200">
-              Remaining balance after this payment: <span className="font-semibold">{peso(remaining)}</span> ({remaining === 0 ? 'Fully Paid' : 'Partially Paid'})
+              Remaining balance after this payment: <span className="font-semibold">{peso(remaining)}</span> ({target?.tuitionPending ? 'Tuition awaiting subjects' : remaining === 0 ? 'Fully Paid' : 'Partially Paid'})
             </p>
           )}
         </div>

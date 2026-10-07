@@ -12,6 +12,15 @@ class SystemSetting extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        $invalidate = function (self $model): void {
+            \App\Support\Rules::forgetSettings();
+        };
+        static::saved($invalidate);
+        static::deleted($invalidate);
+    }
+
     protected function casts(): array
     {
         return [
@@ -19,6 +28,8 @@ class SystemSetting extends Model
             'document_requests_open' => 'boolean',
             'email_notifications' => 'boolean',
             'maintenance_mode' => 'boolean',
+            'tuition_per_unit' => 'float',
+            'misc_fees' => 'float',
         ];
     }
 }

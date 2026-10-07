@@ -11,6 +11,7 @@ use App\Support\Fmt;
 use App\Support\Resources;
 use App\Support\Rules;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -37,9 +38,14 @@ class DocumentController extends ApiController
     }
 
     // GET /api/documents/types
+    // The list of document types and fees is reference data: cached for 10 minutes (php artisan cache:clear after editing it in the database).
     public function types()
     {
-        return DocumentType::orderBy('document_type_id')->get()->map(fn ($t) => Resources::documentType($t));
+        return Cache::remember(
+            'ssis:document-types',
+            600,
+            fn () => DocumentType::orderBy('document_type_id')->get()->map(fn ($t) => Resources::documentType($t))->all(),
+        );
     }
 
     // GET /api/documents/student/{id}

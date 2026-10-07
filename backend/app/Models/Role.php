@@ -12,6 +12,16 @@ class Role extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        $invalidate = function (self $model): void {
+            \Illuminate\Support\Facades\Cache::forget('ssis:public-roles');
+            \Illuminate\Support\Facades\Cache::forget("ssis:role-permissions:{$model->role_id}");
+        };
+        static::saved($invalidate);
+        static::deleted($invalidate);
+    }
+
     protected function casts(): array
     {
         return [
