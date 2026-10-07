@@ -38,8 +38,14 @@ RUN composer install \
     --prefer-dist \
     --optimize-autoloader
 
-# Laravel needs these directories to be writable.
-RUN chown -R www-data:www-data \
+# Laravel needs these runtime directories to exist and be writable.
+RUN mkdir -p \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache \
+    && chown -R www-data:www-data \
     storage \
     bootstrap/cache
 
