@@ -1,10 +1,10 @@
 import { Users, UserRound, Building2, FileText, Banknote } from 'lucide-react'
 import StaffDashboard from '../../components/dashboard/StaffDashboard'
 import useService from '../../hooks/useService'
-import * as adminService from '../../services/adminService'
+import * as adminService from '../../services/admin/adminService'
 
 export default function AdminDashboard() {
-  const state = useService(adminService.getDashboard)
+  const state = useService(adminService.getDashboard, [], "pages/admin/AdminDashboard.jsx:1")
   return (
     <StaffDashboard
       state={state}
@@ -40,3 +40,5 @@ export default function AdminDashboard() {
     />
   )
 }
+
+

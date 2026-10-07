@@ -1,23 +1,24 @@
+import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import AsyncView from '../../components/common/AsyncView'
-import Modal from '../../components/common/Modal'
-import Button from '../../components/common/Button'
-import Input from '../../components/common/Input'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import AsyncView from '../../components/feedback/AsyncView'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import Input from '../../components/forms/Input'
 import useService from '../../hooks/useService'
 import { useToast } from '../../context/toast'
 import { SEMESTERS } from '../../config/constants'
-import * as gradeService from '../../services/gradeService'
+import * as gradeService from '../../services/shared/gradeService'
 
 const show = (v) => (v == null ? '--' : v.toFixed(2))
 
 // Grades are percentages per period. The student's Grades page and the Records/GWA page read the same rows.
 export default function RegistrarGrades() {
   const { notify } = useToast()
-  const { data, loading, error } = useService(gradeService.getAll)
+  const { data, loading, error } = useService(gradeService.getAll, [], "pages/registrar/RegistrarGrades.jsx:1")
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({ prelim: '', midterm: '', finals: '' })
   const [saving, setSaving] = useState(false)
@@ -40,7 +41,7 @@ export default function RegistrarGrades() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades" title="Grades" description="Encode and correct prelim, midterm and finals grades (0–100). Students see changes right away." />
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<TableSkeleton columns={9} search filters actions />}>
         {data && (
           <Card padded={false}>
             <DataTable
@@ -82,3 +83,4 @@ export default function RegistrarGrades() {
     </div>
   )
 }
+

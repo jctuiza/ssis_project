@@ -43,3 +43,5 @@ export function ageFromBirthdate(birthdate) {
   const age = now.getFullYear() - b.getFullYear() - (now < new Date(now.getFullYear(), b.getMonth(), b.getDate()) ? 1 : 0)
   return String(Math.max(0, age))
 }
+
+

@@ -1,11 +1,12 @@
+import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { useState } from 'react'
-import Card from '../../components/common/Card'
-import Select from '../../components/common/Select'
-import AsyncView from '../../components/common/AsyncView'
+import Card from '../../components/ui/Card'
+import Select from '../../components/forms/Select'
+import AsyncView from '../../components/feedback/AsyncView'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
-import * as gradeService from '../../services/gradeService'
-import PageHeader from '../../components/common/PageHeader'
+import * as gradeService from '../../services/shared/gradeService'
+import PageHeader from '../../components/ui/PageHeader'
 
 const termLabel = (t) => `A.Y. ${t.academicYear}, ${t.semester}`
 const show = (value) => (value == null ? '--' : value.toFixed(2))
@@ -17,7 +18,7 @@ const tdCenter = 'px-4 py-3.5 text-center text-slate-700 dark:text-slate-200'
 
 export default function StudentGrades() {
   const { user } = useSession()
-  const { data: terms, loading, error } = useService(() => gradeService.getTermsForStudent(user.id), [user.id])
+  const { data: terms, loading, error } = useService(() => gradeService.getTermsForStudent(user.id), [user.id], "pages/student/StudentGrades.jsx:1")
   const [selectedId, setSelectedId] = useState('')
 
   // Terms are ordered oldest to newest, so the latest one is the default.
@@ -26,7 +27,7 @@ export default function StudentGrades() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades"/>
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={terms != null} skeleton={<ScreenSkeleton kind="grades" />}>
         {terms && !current && (
           <Card><p className="text-sm text-slate-500 dark:text-slate-400">No grades have been posted yet.</p></Card>
         )}
@@ -80,3 +81,4 @@ export default function StudentGrades() {
     </div>
   )
 }
+

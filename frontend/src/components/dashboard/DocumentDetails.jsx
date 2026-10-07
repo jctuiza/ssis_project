@@ -1,5 +1,5 @@
-import InfoGrid from '../common/InfoGrid'
-import StatusBadge from '../common/StatusBadge'
+import InfoGrid from '../ui/InfoGrid'
+import StatusBadge from '../ui/StatusBadge'
 import WorkflowSteps from './WorkflowSteps'
 import { peso } from '../../utils/format'
 
@@ -28,3 +28,4 @@ export default function DocumentDetails({ request, showStudent = false }) {
     </div>
   )
 }
+

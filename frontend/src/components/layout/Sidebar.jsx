@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { GraduationCap, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import ConfirmationDialog from '../common/ConfirmationDialog'
+import ConfirmationDialog from '../feedback/ConfirmationDialog'
 import { ROLES } from '../../config/roles'
 
 // `items` is the menu for the signed-in user (built from the permissions of their role, see config/navigation.js).
@@ -120,3 +120,5 @@ export default function Sidebar({ user, items, currentPage, onNavigate, onLogout
     </>
   )
 }
+
+

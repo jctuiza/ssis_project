@@ -1,21 +1,22 @@
+import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { ClipboardCheck } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import StatusBadge from '../../components/common/StatusBadge'
-import AsyncView from '../../components/common/AsyncView'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import StatusBadge from '../../components/ui/StatusBadge'
+import AsyncView from '../../components/feedback/AsyncView'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
-import * as clearanceService from '../../services/clearanceService'
+import * as clearanceService from '../../services/shared/clearanceService'
 
 export default function StudentClearance() {
   const { user } = useSession()
-  const { data, loading, error } = useService(() => clearanceService.getForStudent(user.id), [user.id])
+  const { data, loading, error } = useService(() => clearanceService.getForStudent(user.id), [user.id], "pages/student/StudentClearance.jsx:1")
   const cleared = data?.filter((c) => c.status === 'Cleared').length ?? 0
 
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Clearance"/>
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="clearance" />}>
         {data && (
           <>
             <Card>
@@ -49,3 +50,4 @@ export default function StudentClearance() {
     </div>
   )
 }
+

@@ -1,21 +1,22 @@
+import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { Camera } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import Button from '../../components/common/Button'
-import AsyncView from '../../components/common/AsyncView'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import Button from '../../components/ui/Button'
+import AsyncView from '../../components/feedback/AsyncView'
 import StudentIDCard from '../../components/student/StudentIDCard'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
-import * as studentService from '../../services/studentService'
+import * as studentService from '../../services/student/studentService'
 
 export default function StudentID() {
   const { user, navigate } = useSession()
-  const { data, loading, error } = useService(() => studentService.getIdCard(user.id), [user.id])
+  const { data, loading, error } = useService(() => studentService.getIdCard(user.id), [user.id], "pages/student/StudentID.jsx:1")
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader eyebrow="Student ID"/>
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="id" />}>
         {data && (
           <>
             {/* The photo comes straight from the session, so a new profile picture shows here instantly. */}
@@ -34,3 +35,4 @@ export default function StudentID() {
     </div>
   )
 }
+

@@ -1,18 +1,19 @@
+import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useState } from 'react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import AsyncView from '../../components/common/AsyncView'
-import Modal from '../../components/common/Modal'
-import Button from '../../components/common/Button'
-import Select from '../../components/common/Select'
-import { Textarea } from '../../components/common/Input'
-import StatusBadge from '../../components/common/StatusBadge'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import AsyncView from '../../components/feedback/AsyncView'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import Select from '../../components/forms/Select'
+import { Textarea } from '../../components/forms/Input'
+import StatusBadge from '../../components/ui/StatusBadge'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { useToast } from '../../context/toast'
 import { CLEARANCE_STATUSES } from '../../config/constants'
-import * as clearanceService from '../../services/clearanceService'
+import * as clearanceService from '../../services/shared/clearanceService'
 
 // `office` is decided by the role's permission (clearance.registrar or clearance.department).
 // Staff tied to a department only see students of that department.
@@ -20,7 +21,7 @@ export default function StaffClearance({ office, description }) {
   const { user } = useSession()
   const { notify } = useToast()
   const departmentId = user.departmentId ?? undefined
-  const { data, loading, error } = useService(() => clearanceService.getByOffice(office, { departmentId }), [office, departmentId])
+  const { data, loading, error } = useService(() => clearanceService.getByOffice(office, { departmentId }), [office, departmentId], "pages/shared/StaffClearance.jsx:1")
   const [selected, setSelected] = useState(null)
   const [status, setStatus] = useState('')
   const [remarks, setRemarks] = useState('')
@@ -43,7 +44,7 @@ export default function StaffClearance({ office, description }) {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Clearance" title={`${office} Clearance`} description={description} />
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<TableSkeleton columns={6} search filters actions />}>
         {data && (
           <Card padded={false}>
             <DataTable
@@ -80,3 +81,4 @@ export default function StaffClearance({ office, description }) {
     </div>
   )
 }
+

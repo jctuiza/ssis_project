@@ -3,10 +3,10 @@ import StaffDashboard from '../../components/dashboard/StaffDashboard'
 import RowList from '../../components/dashboard/RowList'
 import useService from '../../hooks/useService'
 import { peso } from '../../utils/format'
-import * as cashierService from '../../services/cashierService'
+import * as cashierService from '../../services/cashier/cashierService'
 
 export default function CashierDashboard() {
-  const state = useService(cashierService.getDashboard)
+  const state = useService(cashierService.getDashboard, [], "pages/cashier/CashierDashboard.jsx:1")
   return (
     <StaffDashboard
       state={state}
@@ -33,3 +33,4 @@ export default function CashierDashboard() {
     />
   )
 }
+

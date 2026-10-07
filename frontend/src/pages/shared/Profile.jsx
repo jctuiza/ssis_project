@@ -1,19 +1,19 @@
 import { useRef, useState } from 'react'
 import { Camera, KeyRound, Mail, Pencil, ShieldCheck, GraduationCap, Trash2 } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
-import Avatar from '../../components/common/Avatar'
-import Button from '../../components/common/Button'
-import Card from '../../components/common/Card'
-import Modal from '../../components/common/Modal'
-import Input from '../../components/common/Input'
+import PageHeader from '../../components/ui/PageHeader'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
+import Avatar from '../../components/ui/Avatar'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
+import Modal from '../../components/ui/Modal'
+import Input from '../../components/forms/Input'
 import ChangePasswordForm from '../../components/account/ChangePasswordForm'
 import { useSession } from '../../context/session'
 import { useToast } from '../../context/toast'
 import { fileToAvatar } from '../../utils/image'
 import { validateProfile } from '../../utils/validation'
-import * as accountService from '../../services/accountService'
+import * as accountService from '../../services/shared/accountService'
 
 // Profile page shared by every role (student, admin, registrar, cashier, department and custom roles).
 export default function Profile() {
@@ -69,7 +69,7 @@ export default function Profile() {
     setErrors({})
   }
 
-  const validate = (values) => validateProfile(values, { canEditName: !isStudent })
+  const validate = (values) => validateProfile(values, { canEditName: !isStudent, requireContact: isStudent })
 
   // Updates a value. A field that shows an error is re-checked on every change,
   // so its message disappears as soon as the input becomes valid.
@@ -198,7 +198,7 @@ export default function Profile() {
         <div className="grid gap-4">
           {!isStudent && <Input label="Full name" autoComplete="name" {...field('name')} />}
           <Input label="Email" type="email" autoComplete="email" {...field('email')} />
-          <Input label="Contact number" type="tel" autoComplete="tel" {...field('contact')} />
+          <Input label={isStudent ? "Contact number" : "Contact number (optional)"} type="tel" autoComplete="tel" {...field('contact')} />
           {isStudent && (
             <>
               <Input label="Address" {...field('address')} />
@@ -211,3 +211,5 @@ export default function Profile() {
     </div>
   )
 }
+
+

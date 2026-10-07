@@ -1,19 +1,20 @@
+import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useState } from 'react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import AsyncView from '../../components/common/AsyncView'
-import Button from '../../components/common/Button'
-import ConfirmationDialog from '../../components/common/ConfirmationDialog'
-import StatusBadge from '../../components/common/StatusBadge'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import AsyncView from '../../components/feedback/AsyncView'
+import Button from '../../components/ui/Button'
+import ConfirmationDialog from '../../components/feedback/ConfirmationDialog'
+import StatusBadge from '../../components/ui/StatusBadge'
 import useService from '../../hooks/useService'
 import { useToast } from '../../context/toast'
 import { ENROLLMENT_STATUSES } from '../../config/constants'
-import * as enrollmentService from '../../services/enrollmentService'
+import * as enrollmentService from '../../services/shared/enrollmentService'
 
 export default function RegistrarEnrollment() {
   const { notify } = useToast()
-  const { data, loading, error } = useService(enrollmentService.getAll)
+  const { data, loading, error } = useService(enrollmentService.getAll, [], "pages/registrar/RegistrarEnrollment.jsx:1")
   const [pending, setPending] = useState(null) // { enrollment, status }
   const [saving, setSaving] = useState(false)
 
@@ -33,7 +34,7 @@ export default function RegistrarEnrollment() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Enrollment" title="Enrollment" description="Review enrollment requests. Approving creates the student's assessment for the Cashier." />
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<TableSkeleton columns={7} search filters actions />}>
         {data && (
           <Card padded={false}>
             <DataTable
@@ -73,3 +74,4 @@ export default function RegistrarEnrollment() {
     </div>
   )
 }
+

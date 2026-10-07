@@ -37,3 +37,4 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 
 // can(user, 'a') or can(user, 'a', 'b') -> true when the user's role has any of them. `user.permissions` comes from login.
 export const can = (user, ...permissions) => permissions.some((p) => user?.permissions?.includes(p))
+

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { GraduationCap } from 'lucide-react'
-import Button from '../common/Button'
+import Button from '../ui/Button'
 import UnderlineInput from './UnderlineInput'
 import ThemeToggle from '../layout/ThemeToggle'
 import { ROLES } from '../../config/roles'
@@ -73,3 +73,5 @@ export default function LoginForm({
     </div>
   )
 }
+
+

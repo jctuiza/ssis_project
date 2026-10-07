@@ -1,7 +1,8 @@
-import PageHeader from '../common/PageHeader'
-import SummaryCard from '../common/SummaryCard'
-import Card from '../common/Card'
-import AsyncView from '../common/AsyncView'
+import DashboardSkeleton from '../loading/DashboardSkeleton'
+import PageHeader from '../ui/PageHeader'
+import SummaryCard from '../ui/SummaryCard'
+import Card from '../ui/Card'
+import AsyncView from '../feedback/AsyncView'
 import ActivityList from './ActivityList'
 import { useSession } from '../../context/session'
 
@@ -14,7 +15,7 @@ export default function StaffDashboard({ state, description, build }) {
   return (
     <div className="space-y-7">
       <PageHeader eyebrow="Dashboard" title={`Welcome back, ${user.name}!`} description={description} />
-      <AsyncView loading={state.loading} error={state.error}>
+      <AsyncView loading={state.loading} error={state.error} hasData={state.data != null} skeleton={<DashboardSkeleton role={user.role} />}>
         {view && (
           <>
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -48,3 +49,4 @@ export default function StaffDashboard({ state, description, build }) {
     </div>
   )
 }
+

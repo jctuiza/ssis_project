@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Poppins", system-ui, sans-serif;
+
+  /* Light theme neutrals (tinted toward the violet palette) */
+  --color-page: #f2f1f7;    /* app background, table headers, hover states */
+  --color-surface: #faf9fd; /* cards, header, sidebar, modals, inputs */
+  --color-sidebar: #efebfa;
+}
+
+:root {
+  font-family: "Poppins", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  @apply bg-page font-sans text-slate-800 antialiased dark:bg-[#1c1d21] dark:text-slate-200;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  @apply bg-violet-200 text-violet-900 dark:bg-violet-500/30 dark:text-white;
+}
+
+
+/* Reference-inspired neutral blocks; animation changes opacity only. */
+.ssis-skeleton { position: relative; overflow: hidden; background: #e4e9ee; }
+.ssis-skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 15%, rgb(255 255 255 / .55) 50%, transparent 85%); transform: translateX(-100%); animation: ssis-shimmer 1.8s ease-in-out infinite; }
+.dark .ssis-skeleton { background: #34363e; }
+.dark .ssis-skeleton::after { background: linear-gradient(100deg, transparent 15%, rgb(255 255 255 / .07) 50%, transparent 85%); }
+@keyframes ssis-shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .ssis-skeleton::after { animation: none; transform: none; } }
+

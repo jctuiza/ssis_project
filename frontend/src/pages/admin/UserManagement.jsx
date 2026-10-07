@@ -1,22 +1,24 @@
+import TableSkeleton from '../../components/loading/TableSkeleton'
+import { roleRequiresDepartment } from '../../config/programs'
 import { useState } from 'react'
 import { Ban, Check, Eye, KeyRound, Pencil, UserPlus } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import AsyncView from '../../components/common/AsyncView'
-import Modal from '../../components/common/Modal'
-import Button from '../../components/common/Button'
-import Input from '../../components/common/Input'
-import Select from '../../components/common/Select'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
-import ConfirmationDialog from '../../components/common/ConfirmationDialog'
-import CredentialsDialog from '../../components/common/CredentialsDialog'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import AsyncView from '../../components/feedback/AsyncView'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import Input from '../../components/forms/Input'
+import Select from '../../components/forms/Select'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
+import ConfirmationDialog from '../../components/feedback/ConfirmationDialog'
+import CredentialsDialog from '../../components/feedback/CredentialsDialog'
 import useService from '../../hooks/useService'
 import { useToast } from '../../context/toast'
 import { validateStaff } from '../../utils/validation'
 import { passwordIssue } from '../../utils/password'
-import * as adminService from '../../services/adminService'
+import * as adminService from '../../services/admin/adminService'
 
 // The order of the fields in the forms, used to focus the first invalid one.
 const FIELD_ORDER = ['name', 'username', 'email', 'contact', 'role', 'departmentId', 'password']
@@ -25,9 +27,9 @@ const FIELD_ORDER = ['name', 'username', 'email', 'contact', 'role', 'department
 // There is only one Admin account, so the Admin role is never offered when adding or editing an account.
 export default function UserManagement({ title, description, scope = 'all' }) {
   const { notify } = useToast()
-  const users = useService(adminService.getUsers)
-  const depts = useService(adminService.getDepartments)
-  const roles = useService(adminService.getRoles)
+  const users = useService(adminService.getUsers, [], "pages/admin/UserManagement.jsx:1")
+  const depts = useService(adminService.getDepartments, [], "pages/admin/UserManagement.jsx:2")
+  const roles = useService(adminService.getRoles, [], "pages/admin/UserManagement.jsx:3")
   const [mode, setMode] = useState(null) // { type: 'view' | 'edit' | 'toggle' | 'reset' | 'add', user? }
   const [form, setForm] = useState({})
   const [errors, setErrors] = useState({}) // { fieldKey: 'message' } shown under each field
@@ -49,7 +51,7 @@ export default function UserManagement({ title, description, scope = 'all' }) {
 
   // Rules for whichever form is open.
   const validate = (values) => {
-    if (mode?.type === 'add') return validateStaff(values)
+    if (mode?.type === 'add') return validateStaff(values, { requiresDepartment: roleRequiresDepartment(values.role, roles.data ?? []) })
     if (mode?.type === 'edit') return validateStaff(values, { isNew: false })
     if (mode?.type === 'reset' && values.password) {
       const issue = passwordIssue(values.password)
@@ -67,6 +69,10 @@ export default function UserManagement({ title, description, scope = 'all' }) {
   // so its red border and message disappear as soon as the input becomes valid.
   const change = (key) => (e) => {
     const values = { ...form, [key]: e.target.value }
+    if (mode?.type === 'add' && key === 'role' && !roleRequiresDepartment(values.role, roles.data ?? [])) {
+      values.departmentId = ''
+      setErrors(previous => { const next = { ...previous }; delete next.departmentId; return next })
+    }
     setForm(values)
     if (errors[key]) {
       const issue = validate(values)[key]
@@ -130,7 +136,7 @@ export default function UserManagement({ title, description, scope = 'all' }) {
         description={description}
         action={scope === 'staff' && <Button onClick={openAdd}><UserPlus className="h-4 w-4" />Add staff account</Button>}
       />
-      <AsyncView loading={users.loading} error={users.error}>
+      <AsyncView loading={users.loading} error={users.error} hasData={users.data != null} skeleton={<TableSkeleton columns={5} search filters actions />}>
         <Card padded={false}>
           <DataTable
             rows={rows}
@@ -193,7 +199,7 @@ export default function UserManagement({ title, description, scope = 'all' }) {
         description="A temporary password is generated. The user must change it at first login."
         onClose={close}
         footer={<><Button variant="outline" onClick={close}>Cancel</Button><Button loading={saving} onClick={async () => {
-          const r = await submit(() => adminService.createUser(form))
+          const r = await submit(() => adminService.createUser({ ...form, departmentId: roleRequiresDepartment(form.role, roles.data ?? []) ? form.departmentId : null }))
           if (r) setCredentials({ title: 'Account created', description: `${r.user.name} · ${r.user.roleLabel}`, fields: [{ label: 'Username', value: r.credentials.username }, { label: 'Temporary password', value: r.credentials.temporaryPassword }] })
         }}>Create account</Button></>}
       >
@@ -203,7 +209,9 @@ export default function UserManagement({ title, description, scope = 'all' }) {
           <Input label="Email" type="email" {...field('email')} />
           <Input label="Contact number (optional)" type="tel" {...field('contact')} />
           <Select label="Role" placeholder="Select role" options={staffRoles.map((r) => ({ value: r.key, label: r.label }))} {...field('role')} />
-          <Select label="Department (optional)" placeholder="All offices" options={deptOptions} {...field('departmentId')} />
+          {roleRequiresDepartment(form.role, roles.data ?? []) && (
+            <Select label="Department" placeholder="Select department" options={deptOptions} {...field('departmentId')} />
+          )}
         </div>
       </Modal>
 
@@ -237,3 +245,4 @@ export default function UserManagement({ title, description, scope = 'all' }) {
     </div>
   )
 }
+

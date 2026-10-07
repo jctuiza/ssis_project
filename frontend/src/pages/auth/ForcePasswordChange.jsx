@@ -1,7 +1,7 @@
 import { KeyRound } from 'lucide-react'
 import ChangePasswordForm from '../../components/account/ChangePasswordForm'
 import ThemeToggle from '../../components/layout/ThemeToggle'
-import Button from '../../components/common/Button'
+import Button from '../../components/ui/Button'
 import { cardClass } from '../../utils/styles'
 
 // Shown right after login when the account still uses a temporary password.
@@ -21,3 +21,5 @@ export default function ForcePasswordChange({ user, theme, onToggleTheme, onDone
     </div>
   )
 }
+
+

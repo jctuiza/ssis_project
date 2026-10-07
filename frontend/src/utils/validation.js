@@ -61,7 +61,7 @@ export function validateStudent(values, { requireDepartment = true } = {}) {
 }
 
 // Admin: add / edit a staff account. `isNew` adds the fields that only exist when creating (username, role).
-export function validateStaff(values, { isNew = true } = {}) {
+export function validateStaff(values, { isNew = true, requiresDepartment = false } = {}) {
   const errors = {}
   const v = (key) => (typeof values[key] === 'string' ? values[key].trim() : values[key] ?? '')
 
@@ -85,13 +85,14 @@ export function validateStaff(values, { isNew = true } = {}) {
   if (contact && phoneIssue(contact)) errors.contact = phoneIssue(contact)
 
   if (isNew && !v('role')) errors.role = 'Select a role.'
+  if (requiresDepartment && !v('departmentId')) errors.departmentId = 'Select a department.'
 
   return errors
 }
 
 // Profile page (every role). Staff may edit their own name; students may not (the Registrar manages it).
 // Only the fields that are present in `values` are checked, so the same rules serve the form and the service.
-export function validateProfile(values, { canEditName = false } = {}) {
+export function validateProfile(values, { canEditName = false, requireContact = true } = {}) {
   const errors = {}
   const text = (key) => (typeof values[key] === 'string' ? values[key].trim() : '')
 
@@ -109,9 +110,11 @@ export function validateProfile(values, { canEditName = false } = {}) {
 
   if (values.contact !== undefined) {
     const contact = text('contact')
-    if (!contact) errors.contact = 'Enter a contact number.'
-    else if (phoneIssue(contact)) errors.contact = phoneIssue(contact)
+    if (!contact && requireContact) errors.contact = 'Enter a contact number.'
+    else if (contact && phoneIssue(contact)) errors.contact = phoneIssue(contact)
   }
 
   return errors
 }
+
+

@@ -1,28 +1,29 @@
+import { DocumentRequestFormSkeleton, DocumentRequestsTableSkeleton } from '../../components/loading/ScreenSkeleton'
 import { useState } from 'react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import AsyncView from '../../components/common/AsyncView'
-import Modal from '../../components/common/Modal'
-import Button from '../../components/common/Button'
-import Input from '../../components/common/Input'
-import Select from '../../components/common/Select'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import AsyncView from '../../components/feedback/AsyncView'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import Input from '../../components/forms/Input'
+import Select from '../../components/forms/Select'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
 import DocumentDetails from '../../components/dashboard/DocumentDetails'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { useToast } from '../../context/toast'
 import { DOCUMENT_STATUSES } from '../../config/constants'
 import { peso } from '../../utils/format'
-import * as documentService from '../../services/documentService'
+import * as documentService from '../../services/shared/documentService'
 
 
 export default function StudentDocuments() {
   const { user } = useSession()
   const { notify } = useToast()
-  const types = useService(documentService.getTypes)
-  const requests = useService(() => documentService.getForStudent(user.id), [user.id])
+  const types = useService(documentService.getTypes, [], "pages/student/StudentDocuments.jsx:1")
+  const requests = useService(() => documentService.getForStudent(user.id), [user.id], "pages/student/StudentDocuments.jsx:2")
   const [type, setType] = useState('')
   const [purpose, setPurpose] = useState('')
   const [error, setError] = useState('')
@@ -65,6 +66,7 @@ export default function StudentDocuments() {
     <div className="space-y-6">
       <PageHeader eyebrow="Document Requests"/>
 
+      <AsyncView loading={types.loading} error={types.error} hasData={types.data != null} skeleton={<DocumentRequestFormSkeleton />}>
       <Card title="New request" description="Pick a document and submit. You will be asked to confirm before it is sent. The fee is paid at the Cashier.">
         <form onSubmit={askConfirmation} noValidate className="grid gap-4 md:grid-cols-2">
           <Select label="Document type" value={type} onChange={(e) => setType(e.target.value)} placeholder="Select a document" options={(types.data ?? []).map((t) => t.name)} error={error} />
@@ -79,7 +81,9 @@ export default function StudentDocuments() {
         </form>
       </Card>
 
-      <AsyncView loading={requests.loading} error={requests.error}>
+      </AsyncView>
+
+      <AsyncView loading={requests.loading} error={requests.error} hasData={requests.data != null} skeleton={<DocumentRequestsTableSkeleton />}>
         {requests.data && (
           <Card title="My requests" padded={false}>
             <DataTable
@@ -133,3 +137,4 @@ export default function StudentDocuments() {
     </div>
   )
 }
+

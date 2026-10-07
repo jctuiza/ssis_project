@@ -2,7 +2,7 @@ import { useState } from 'react'
 import LoginForm from '../../components/auth/LoginForm'
 import LoginPhoto from '../../components/auth/LoginPhoto'
 import { ROLES, isStaffRole } from '../../config/roles'
-import * as authService from '../../services/authService'
+import * as authService from '../../services/auth/authService'
 
 // Login page of one role. The role comes from the address (/student/login, /admin/login, ...), see App.jsx.
 export default function Login({ role, theme, onToggleTheme, onLogin }) {
@@ -57,3 +57,5 @@ export default function Login({ role, theme, onToggleTheme, onLogin }) {
     </div>
   )
 }
+
+
