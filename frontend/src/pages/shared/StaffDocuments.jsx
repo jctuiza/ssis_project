@@ -1,20 +1,21 @@
+import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useState } from 'react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import AsyncView from '../../components/common/AsyncView'
-import Modal from '../../components/common/Modal'
-import Button from '../../components/common/Button'
-import Select from '../../components/common/Select'
-import { Textarea } from '../../components/common/Input'
-import StatusBadge from '../../components/common/StatusBadge'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import AsyncView from '../../components/feedback/AsyncView'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import Select from '../../components/forms/Select'
+import { Textarea } from '../../components/forms/Input'
+import StatusBadge from '../../components/ui/StatusBadge'
 import DocumentDetails from '../../components/dashboard/DocumentDetails'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { useToast } from '../../context/toast'
 import { can } from '../../config/permissions'
 import { DOCUMENT_STATUSES, nextDocumentStatuses } from '../../config/constants'
-import * as documentService from '../../services/documentService'
+import * as documentService from '../../services/shared/documentService'
 
 // Registrar (documents.process): review, approve (forwards to the Cashier), reject, process, release.
 // Department (documents.review): start a review or reject only.
@@ -24,7 +25,7 @@ export default function StaffDocuments({ title = 'Document Requests', descriptio
   const { notify } = useToast()
   const departmentId = user.departmentId ?? undefined
   const canProcess = can(user, 'documents.process')
-  const { data, loading, error } = useService(() => documentService.getAll({ departmentId }), [departmentId])
+  const { data, loading, error } = useService(() => documentService.getAll({ departmentId }), [departmentId], "pages/shared/StaffDocuments.jsx:1")
   const [selected, setSelected] = useState(null)
   const [status, setStatus] = useState('')
   const [remarks, setRemarks] = useState('')
@@ -61,7 +62,7 @@ export default function StaffDocuments({ title = 'Document Requests', descriptio
   return (
     <div className="space-y-6">
       <PageHeader eyebrow={title} title={title} description={description} />
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<TableSkeleton columns={6} search filters actions />}>
         {data && (
           <Card padded={false}>
             <DataTable
@@ -111,3 +112,4 @@ export default function StaffDocuments({ title = 'Document Requests', descriptio
     </div>
   )
 }
+

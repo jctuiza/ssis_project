@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import Button from '../common/Button'
-import Input from '../common/Input'
+import Button from '../ui/Button'
+import Input from '../forms/Input'
 import { useToast } from '../../context/toast'
 import { passwordIssue } from '../../utils/password'
-import * as accountService from '../../services/accountService'
+import * as accountService from '../../services/shared/accountService'
 
 // Used on the Profile page and on the forced "choose a new password" screen.
 export default function ChangePasswordForm({ onDone, currentLabel = 'Current password' }) {
@@ -45,3 +45,5 @@ export default function ChangePasswordForm({ onDone, currentLabel = 'Current pas
     </form>
   )
 }
+
+

@@ -1,32 +1,33 @@
+import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { Landmark, Wallet } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import SummaryCard from '../../components/common/SummaryCard'
-import Card from '../../components/common/Card'
-import DataTable from '../../components/common/DataTable'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
-import AsyncView from '../../components/common/AsyncView'
+import PageHeader from '../../components/ui/PageHeader'
+import SummaryCard from '../../components/ui/SummaryCard'
+import Card from '../../components/ui/Card'
+import DataTable from '../../components/tables/DataTable'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
+import AsyncView from '../../components/feedback/AsyncView'
 import ActivityList from '../../components/dashboard/ActivityList'
 import RowList from '../../components/dashboard/RowList'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { peso } from '../../utils/format'
-import * as paymentService from '../../services/paymentService'
-import { getNotifications } from '../../services/activityService'
+import * as paymentService from '../../services/cashier/paymentService'
+import { getNotifications } from '../../services/admin/activityService'
 
 // View-only: students can check their balance and history. All payments are made face-to-face at the Cashier's Office
 // and recorded by the Cashier, so there is no pay button here.
 export default function StudentPayments() {
   const { user } = useSession()
-  const { data, loading, error } = useService(() => paymentService.getAccountForStudent(user.id), [user.id])
-  const notes = useService(() => getNotifications())
+  const { data, loading, error } = useService(() => paymentService.getAccountForStudent(user.id), [user.id], "pages/student/StudentPayments.jsx:1")
+  const notes = useService(() => getNotifications(), [], "pages/student/StudentPayments.jsx:2")
   const a = data?.assessment
   const paymentNotes = (notes.data ?? []).filter((n) => n.page === 'payments').slice(0, 5)
 
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Payments"/>
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="payments" />}>
         {data && (
           <>
             {a ? (
@@ -88,3 +89,4 @@ export default function StudentPayments() {
     </div>
   )
 }
+

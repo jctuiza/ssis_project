@@ -32,3 +32,4 @@ const PROCESS_MOVES = {
 // canProcess = the role has documents.process (Registrar). Reviewers (documents.review, Department) can only
 // start a review or reject. The current status is always included so remarks can be edited on their own.
 export const nextDocumentStatuses = (canProcess, status) => [status, ...((canProcess ? PROCESS_MOVES : REVIEW_MOVES)[status] ?? [])]
+

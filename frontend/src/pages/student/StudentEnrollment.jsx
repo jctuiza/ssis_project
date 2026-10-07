@@ -1,20 +1,21 @@
+import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { useState } from 'react'
-import PageHeader from '../../components/common/PageHeader'
-import Card from '../../components/common/Card'
-import Button from '../../components/common/Button'
-import DataTable from '../../components/common/DataTable'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
-import AsyncView from '../../components/common/AsyncView'
+import PageHeader from '../../components/ui/PageHeader'
+import Card from '../../components/ui/Card'
+import Button from '../../components/ui/Button'
+import DataTable from '../../components/tables/DataTable'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
+import AsyncView from '../../components/feedback/AsyncView'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { useToast } from '../../context/toast'
-import * as enrollmentService from '../../services/enrollmentService'
+import * as enrollmentService from '../../services/shared/enrollmentService'
 
 export default function StudentEnrollment() {
   const { user } = useSession()
   const { notify } = useToast()
-  const { data, loading, error } = useService(() => enrollmentService.getForStudent(user.id), [user.id])
+  const { data, loading, error } = useService(() => enrollmentService.getForStudent(user.id), [user.id], "pages/student/StudentEnrollment.jsx:1")
   const [submitting, setSubmitting] = useState(false)
 
   const submit = async () => {
@@ -32,7 +33,7 @@ export default function StudentEnrollment() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Enrollment"/>
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="enrollment" />}>
         {data && (
           <>
             <Card title="Enrollment information">
@@ -72,3 +73,4 @@ export default function StudentEnrollment() {
     </div>
   )
 }
+

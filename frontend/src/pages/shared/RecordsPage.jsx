@@ -1,7 +1,7 @@
 import ResourcePage from '../../components/dashboard/ResourcePage'
-import StatusBadge from '../../components/common/StatusBadge'
+import StatusBadge from '../../components/ui/StatusBadge'
 import { useSession } from '../../context/session'
-import * as registrarService from '../../services/registrarService'
+import * as registrarService from '../../services/registrar/registrarService'
 
 // Academic standing from posted grades. Users tied to a department only see their department.
 export default function RecordsPage({ title = 'Academic Records', description }) {
@@ -28,3 +28,5 @@ export default function RecordsPage({ title = 'Academic Records', description })
     />
   )
 }
+
+

@@ -1,13 +1,14 @@
+import { programsForDepartment } from '../../config/programs'
 import { useState } from 'react'
 import { Eye, Pencil, UserPlus } from 'lucide-react'
 import ResourcePage from '../../components/dashboard/ResourcePage'
-import Modal from '../../components/common/Modal'
-import Button from '../../components/common/Button'
-import Input, { Textarea } from '../../components/common/Input'
-import Select from '../../components/common/Select'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
-import CredentialsDialog from '../../components/common/CredentialsDialog'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import Input, { Textarea } from '../../components/forms/Input'
+import Select from '../../components/forms/Select'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
+import CredentialsDialog from '../../components/feedback/CredentialsDialog'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { useToast } from '../../context/toast'
@@ -15,13 +16,13 @@ import { can } from '../../config/permissions'
 import { ageFromBirthdate } from '../../utils/format'
 import { validateStudent } from '../../utils/validation'
 import { ENROLLMENT_STATUSES, YEAR_LEVELS } from '../../config/constants'
-import * as studentService from '../../services/studentService'
-import * as adminService from '../../services/adminService'
+import * as studentService from '../../services/student/studentService'
+import * as adminService from '../../services/admin/adminService'
 
 const EMPTY = { name: '', email: '', birthdate: '', contact: '', address: '', program: '', yearLevel: '', departmentId: '', emergencyName: '', emergencyContact: '' }
 
 // The order of the fields in the form, used to focus the first invalid one.
-const FIELD_ORDER = ['name', 'email', 'contact', 'birthdate', 'address', 'program', 'yearLevel', 'departmentId', 'emergencyName', 'emergencyContact']
+const FIELD_ORDER = ['name', 'email', 'contact', 'birthdate', 'address', 'departmentId', 'program', 'yearLevel', 'emergencyName', 'emergencyContact']
 const today = () => new Date().toISOString().slice(0, 10)
 
 // Students list for staff. Users with students.manage (the Registrar) can also register and edit students.
@@ -30,7 +31,7 @@ export default function StudentsPage({ description }) {
   const { notify } = useToast()
   const departmentId = user.departmentId ?? undefined
   const canManage = can(user, 'students.manage')
-  const departments = useService(adminService.getDepartments)
+  const departments = useService(adminService.getDepartments, [], "pages/shared/StudentsPage.jsx:1")
 
   const [viewing, setViewing] = useState(null)
   const [form, setForm] = useState(null) // { id?: string, values }
@@ -38,7 +39,15 @@ export default function StudentsPage({ description }) {
   const [saving, setSaving] = useState(false)
   const [credentials, setCredentials] = useState(null)
 
-  const validate = (values) => validateStudent(values, { requireDepartment: !departmentId })
+  const programOptions = programsForDepartment(departments.data, form?.values.departmentId)
+  const validate = (values) => {
+    const found = validateStudent(values, { requireDepartment: !departmentId })
+    const options = programsForDepartment(departments.data, values.departmentId)
+    if (values.program && !options.some(option => option.value === values.program)) {
+      found.program = 'Select a program offered by the selected department.'
+    }
+    return found
+  }
 
   const focusFirst = (found) => {
     const first = FIELD_ORDER.find((key) => found[key])
@@ -66,6 +75,10 @@ export default function StudentsPage({ description }) {
   // so its message updates or disappears as soon as the input becomes valid.
   const change = (key) => (e) => {
     const values = { ...form.values, [key]: e.target.value }
+    if (key === 'departmentId') {
+      values.program = ''
+      setErrors(previous => { const next = { ...previous }; delete next.program; return next })
+    }
     setForm({ ...form, values })
     if (errors[key]) {
       const issue = validate(values)[key]
@@ -184,11 +197,17 @@ export default function StudentsPage({ description }) {
               className="[&_input]:cursor-not-allowed [&_input]:opacity-70"
             />
             <Textarea label="Address" rows={2} className="sm:col-span-2" {...field('address')} />
-            <Input label="Program / course" placeholder="e.g. BS Information Technology" {...field('program')} />
-            <Select label="Year level" options={YEAR_LEVELS} placeholder="Select year level" {...field('yearLevel')} />
             {!departmentId && (
-              <Select label="Department" className="sm:col-span-2" placeholder="Select department" options={(departments.data ?? []).map((d) => ({ value: d.id, label: `${d.code} – ${d.name}` }))} {...field('departmentId')} />
+              <Select label="Department" className="sm:col-span-2" placeholder={departments.loading ? 'Loading departments…' : 'Select department'} disabled={departments.loading} options={(departments.data ?? []).map((d) => ({ value: d.id, label: `${d.code} – ${d.name}` }))} {...field('departmentId')} />
             )}
+            <Select
+              label="Program / course"
+              options={programOptions}
+              placeholder={!form.values.departmentId ? 'Select a department first' : departments.loading ? 'Loading programs…' : programOptions.length ? 'Select program / course' : 'No programs configured for this department'}
+              disabled={!form.values.departmentId || departments.loading || !programOptions.length}
+              {...field('program')}
+            />
+            <Select label="Year level" options={YEAR_LEVELS} placeholder="Select year level" {...field('yearLevel')} />
             <Input label="Emergency contact person (optional)" {...field('emergencyName')} />
             <Input label="Emergency contact number (optional)" type="tel" {...field('emergencyContact')} />
           </div>
@@ -205,3 +224,5 @@ export default function StudentsPage({ description }) {
     </>
   )
 }
+
+

@@ -22,3 +22,5 @@ export function fileToAvatar(file, size = 400) {
     img.src = url
   })
 }
+
+

@@ -1,5 +1,6 @@
+import '@fontsource/caveat/latin-500.css'
 import { GraduationCap } from 'lucide-react'
-import Avatar from '../common/Avatar'
+import Avatar from '../ui/Avatar'
 import { cardClass } from '../../utils/styles'
 
 const shell = `${cardClass} mx-auto flex min-h-[520px] w-full max-w-[340px] flex-col overflow-hidden`
@@ -109,3 +110,5 @@ export default function StudentIDCard({ card, photo }) {
     </div>
   )
 }
+
+

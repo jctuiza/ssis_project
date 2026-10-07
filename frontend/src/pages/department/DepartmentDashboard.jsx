@@ -1,14 +1,14 @@
 import { Users, ClipboardCheck, FileText } from 'lucide-react'
 import StaffDashboard from '../../components/dashboard/StaffDashboard'
 import RowList from '../../components/dashboard/RowList'
-import StatusBadge from '../../components/common/StatusBadge'
+import StatusBadge from '../../components/ui/StatusBadge'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
-import * as departmentService from '../../services/departmentService'
+import * as departmentService from '../../services/department/departmentService'
 
 export default function DepartmentDashboard() {
   const { user } = useSession()
-  const state = useService(() => departmentService.getDashboard(user.departmentId), [user.departmentId])
+  const state = useService(() => departmentService.getDashboard(user.departmentId), [user.departmentId], "pages/department/DepartmentDashboard.jsx:1")
   return (
     <StaffDashboard
       state={state}
@@ -33,3 +33,5 @@ export default function DepartmentDashboard() {
     />
   )
 }
+
+

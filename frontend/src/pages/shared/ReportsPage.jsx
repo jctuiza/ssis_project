@@ -1,23 +1,24 @@
+import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { TrendingUp } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import SummaryCard from '../../components/common/SummaryCard'
-import Card from '../../components/common/Card'
-import AsyncView from '../../components/common/AsyncView'
+import PageHeader from '../../components/ui/PageHeader'
+import SummaryCard from '../../components/ui/SummaryCard'
+import Card from '../../components/ui/Card'
+import AsyncView from '../../components/feedback/AsyncView'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
-import * as reportService from '../../services/reportService'
+import * as reportService from '../../services/shared/reportService'
 
 const colors = ['bg-violet-400', 'bg-emerald-400', 'bg-amber-400', 'bg-rose-400', 'bg-sky-400']
 
 export default function ReportsPage({ kind, description }) {
   const { user } = useSession()
   const departmentId = user.departmentId ?? undefined
-  const { data, loading, error } = useService(() => reportService.getReport(kind, { departmentId }), [kind, departmentId])
+  const { data, loading, error } = useService(() => reportService.getReport(kind, { departmentId }), [kind, departmentId], "pages/shared/ReportsPage.jsx:1")
 
   return (
     <div className="space-y-7">
       <PageHeader eyebrow="Reports" title="Reports" description={description} />
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="reports" />}>
         {data && (
           <>
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -51,3 +52,4 @@ export default function ReportsPage({ kind, description }) {
     </div>
   )
 }
+

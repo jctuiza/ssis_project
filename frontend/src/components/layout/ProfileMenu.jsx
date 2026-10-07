@@ -1,4 +1,4 @@
-import Avatar from '../common/Avatar'
+import Avatar from '../ui/Avatar'
 import { ROLES } from '../../config/roles'
 
 export default function ProfileMenu({ user, onProfile }) {
@@ -22,3 +22,5 @@ export default function ProfileMenu({ user, onProfile }) {
     </div>
   )
 }
+
+

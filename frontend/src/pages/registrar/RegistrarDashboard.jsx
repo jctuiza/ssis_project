@@ -1,12 +1,12 @@
 import { Users, GraduationCap, ClipboardCheck, FileText } from 'lucide-react'
 import StaffDashboard from '../../components/dashboard/StaffDashboard'
 import RowList from '../../components/dashboard/RowList'
-import StatusBadge from '../../components/common/StatusBadge'
+import StatusBadge from '../../components/ui/StatusBadge'
 import useService from '../../hooks/useService'
-import * as registrarService from '../../services/registrarService'
+import * as registrarService from '../../services/registrar/registrarService'
 
 export default function RegistrarDashboard() {
-  const state = useService(registrarService.getDashboard)
+  const state = useService(registrarService.getDashboard, [], "pages/registrar/RegistrarDashboard.jsx:1")
   return (
     <StaffDashboard
       state={state}
@@ -33,3 +33,5 @@ export default function RegistrarDashboard() {
     />
   )
 }
+
+

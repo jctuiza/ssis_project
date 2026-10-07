@@ -3,3 +3,5 @@ export const fieldClass =
 export const fieldErrorClass = '!border-rose-500 focus:!ring-rose-500/20'
 export const cardClass =
   'rounded-2xl border border-slate-200 bg-surface shadow-sm dark:border-white/10 dark:bg-[#26272c] dark:shadow-none'
+
+

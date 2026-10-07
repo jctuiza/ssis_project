@@ -17,3 +17,5 @@ export const generateTemporaryPassword = () => {
   const chars = [pick(LETTERS), pick(DIGITS), ...Array.from({ length: 6 }, () => pick(LETTERS + DIGITS))]
   return chars.sort(() => Math.random() - 0.5).join('')
 }
+
+

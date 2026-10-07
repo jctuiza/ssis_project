@@ -52,3 +52,4 @@ export const STAFF_PAGES = [
 // Menu for the signed-in user, built from the permissions of their role.
 export const navFor = (user) =>
   user.role === 'student' ? STUDENT_NAV : [dashboard, ...STAFF_PAGES.filter((p) => can(user, ...p.perms)), profile]
+

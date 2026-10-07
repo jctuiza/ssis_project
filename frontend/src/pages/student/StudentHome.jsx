@@ -1,17 +1,18 @@
+import StudentHomeSkeleton from '../../components/loading/StudentHomeSkeleton'
 import { GraduationCap, BookOpen, ClipboardCheck, FileText, Wallet, UserRound, Megaphone } from 'lucide-react'
-import PageHeader from '../../components/common/PageHeader'
-import SummaryCard from '../../components/common/SummaryCard'
-import Card from '../../components/common/Card'
-import Button from '../../components/common/Button'
-import InfoGrid from '../../components/common/InfoGrid'
-import StatusBadge from '../../components/common/StatusBadge'
-import AsyncView from '../../components/common/AsyncView'
+import PageHeader from '../../components/ui/PageHeader'
+import SummaryCard from '../../components/ui/SummaryCard'
+import Card from '../../components/ui/Card'
+import Button from '../../components/ui/Button'
+import InfoGrid from '../../components/ui/InfoGrid'
+import StatusBadge from '../../components/ui/StatusBadge'
+import AsyncView from '../../components/feedback/AsyncView'
 import ActivityList from '../../components/dashboard/ActivityList'
 import RowList from '../../components/dashboard/RowList'
 import useService from '../../hooks/useService'
 import { useSession } from '../../context/session'
 import { peso } from '../../utils/format'
-import * as studentService from '../../services/studentService'
+import * as studentService from '../../services/student/studentService'
 
 const quick = [
   { page: 'enrollment', label: 'Enrollment', desc: 'View your subjects and status', icon: GraduationCap },
@@ -26,12 +27,12 @@ const quick = [
 // so a Registrar approval or a Cashier payment shows up without a reload.
 export default function StudentHome() {
   const { user, navigate } = useSession()
-  const { data, loading, error } = useService(() => studentService.getDashboard(user.id), [user.id])
+  const { data, loading, error } = useService(() => studentService.getDashboard(user.id), [user.id], "pages/student/StudentHome.jsx:1")
 
   return (
     <div className="space-y-7">
       <PageHeader eyebrow="Homepage"/>
-      <AsyncView loading={loading} error={error}>
+      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<StudentHomeSkeleton />}>
         {data && (
           <>
             <Card title="Student information">
@@ -104,3 +105,4 @@ export default function StudentHome() {
     </div>
   )
 }
+
