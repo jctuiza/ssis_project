@@ -14,7 +14,7 @@ ssis_project/
 ├── backend/                  Laravel API
 │   ├── app/                  controllers (app/Http/Controllers), models, business rules (app/Support)
 │   ├── routes/api.php        every API endpoint
-│   ├── database/             migrations, seeders and ssis_db.sql (the database design)
+│   ├── database/             migrations and seeders (database structure and initial data)
 │   ├── config/  tests/  ...  standard Laravel folders
 │   └── composer.json, .env.example, Dockerfile
 ├── frontend/                 React app
@@ -32,7 +32,7 @@ ssis_project/
 
 Requirements: PHP 8.3+, Composer, Node.js 20+, MySQL (for example XAMPP).
 
-1. **Database:** start MySQL(or XAMPP) and create an empty database named 'ssis' (or anything), then run php artisan migrate --seed on cmd.
+1. **Database:** start MySQL (or XAMPP) and create an empty database named `ssis`.
 2. **Back end** (terminal 1):
    ```
    cd backend
