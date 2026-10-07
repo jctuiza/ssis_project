@@ -56,15 +56,26 @@ class RolePermissionSeeder extends Seeder
                 ->where('key', $roleKey)
                 ->first();
 
+            if (! $role) {
+                continue;
+            }
+
             foreach ($permissionKeys as $permissionKey) {
                 $permission = DB::table('permissions')
                     ->where('key', $permissionKey)
                     ->first();
 
-                DB::table('role_permissions')->insert([
-                    'role_id' => $role->role_id,
-                    'permission_id' => $permission->permission_id,
-                ]);
+                if (! $permission) {
+                    continue;
+                }
+
+                DB::table('role_permissions')->updateOrInsert(
+                    [
+                        'role_id' => $role->role_id,
+                        'permission_id' => $permission->permission_id,
+                    ],
+                    []
+                );
             }
         }
     }

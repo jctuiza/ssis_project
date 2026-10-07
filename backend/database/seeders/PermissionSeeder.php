@@ -12,7 +12,7 @@ class PermissionSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('permissions')->insert([
+        $permissions = [
             [
                 'key' => 'students.view',
                 'label' => 'View student records',
@@ -103,6 +103,16 @@ class PermissionSeeder extends Seeder
                 'label' => 'Create and configure roles',
                 'group' => 'Administration',
             ],
-        ]);
+        ];
+
+        foreach ($permissions as $permission) {
+            DB::table('permissions')->updateOrInsert(
+                ['key' => $permission['key']],
+                [
+                    'label' => $permission['label'],
+                    'group' => $permission['group'],
+                ]
+            );
+        }
     }
 }

@@ -29,11 +29,18 @@ class DocumentTypeRequiredClearanceSeeder extends Seeder
                 ->where('name', $documentName)
                 ->first();
 
+            if (! $documentType) {
+                continue;
+            }
+
             foreach ($offices as $office) {
-                DB::table('document_type_required_clearances')->insert([
-                    'document_type_id' => $documentType->document_type_id,
-                    'office' => $office,
-                ]);
+                DB::table('document_type_required_clearances')->updateOrInsert(
+                    [
+                        'document_type_id' => $documentType->document_type_id,
+                        'office' => $office,
+                    ],
+                    []
+                );
             }
         }
     }

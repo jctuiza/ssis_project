@@ -12,35 +12,39 @@ class DepartmentSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('departments')->insert([
+        $departments = [
             [
                 'code' => 'CCS',
                 'name' => 'College of Computing Studies',
                 'head_name' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'code' => 'CBA',
                 'name' => 'College of Business and Accountancy',
                 'head_name' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'code' => 'CAS',
                 'name' => 'College of Arts and Sciences',
                 'head_name' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'code' => 'COE',
                 'name' => 'College of Engineering',
                 'head_name' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
-        ]);
+        ];
+
+        foreach ($departments as $department) {
+            DB::table('departments')->updateOrInsert(
+                ['code' => $department['code']],
+                [
+                    'name' => $department['name'],
+                    'head_name' => $department['head_name'],
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
     }
 }

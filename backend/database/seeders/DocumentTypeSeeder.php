@@ -12,42 +12,44 @@ class DocumentTypeSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('document_types')->insert([
+        $documentTypes = [
             [
                 'name' => 'Certificate of Enrollment',
                 'fee' => 50.00,
                 'processing_time' => '1–2 working days',
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'name' => 'Transcript of Records',
                 'fee' => 150.00,
                 'processing_time' => '5–7 working days',
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'name' => 'Certificate of Grades',
                 'fee' => 50.00,
                 'processing_time' => '1–2 working days',
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'name' => 'Good Moral Certificate',
                 'fee' => 50.00,
                 'processing_time' => '2–3 working days',
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'name' => 'Honorable Dismissal',
                 'fee' => 100.00,
                 'processing_time' => '3–5 working days',
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
-        ]);
+        ];
+
+        foreach ($documentTypes as $documentType) {
+            DB::table('document_types')->updateOrInsert(
+                ['name' => $documentType['name']],
+                [
+                    'fee' => $documentType['fee'],
+                    'processing_time' => $documentType['processing_time'],
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
     }
 }
