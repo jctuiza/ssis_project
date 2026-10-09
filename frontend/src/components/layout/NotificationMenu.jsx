@@ -1,13 +1,22 @@
+import ConfirmationDialog from '../feedback/ConfirmationDialog'
 import { useState } from 'react'
 import { Bell } from 'lucide-react'
 
 // notifications: [{ id, text, time, page, read }]
-export default function NotificationMenu({ notifications = [], onOpenItem, onMarkAllRead }) {
+export default function NotificationMenu({ notifications = [], onOpenItem, onMarkAllRead, onDeleteAll }) {
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const clear = async () => {
+    if (deleting) return
+    setDeleting(true)
+    try { await onDeleteAll?.(); setConfirming(false) } catch { /* Parent displays the API error. */ } finally { setDeleting(false) }
+  }
   const [open, setOpen] = useState(false)
   const unread = notifications.filter((n) => !n.read).length
 
   return (
     <div className="relative">
+      <ConfirmationDialog open={confirming} title="Delete all notifications" message="Clear your current notifications? Other users’ notifications will remain." confirmLabel="Delete All" danger loading={deleting} onConfirm={clear} onCancel={()=>!deleting && setConfirming(false)} />
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -36,6 +45,7 @@ export default function NotificationMenu({ notifications = [], onOpenItem, onMar
                 <button type="button" onClick={onMarkAllRead} className="shrink-0 text-xs font-medium text-violet-600 hover:underline dark:text-violet-300">Mark all as read</button>
               )}
             </div>
+            {notifications.length > 0 && <button type="button" className="px-4 py-2 text-xs text-rose-500 hover:underline" onClick={()=>setConfirming(true)}>Delete All</button>}
             <div className="max-h-80 overflow-y-auto">
               {notifications.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">No new notifications.</p>

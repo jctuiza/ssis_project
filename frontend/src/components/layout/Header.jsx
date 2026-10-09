@@ -4,7 +4,7 @@ import ProfileMenu from './ProfileMenu'
 import ThemeToggle from './ThemeToggle'
 import { ROLES } from '../../config/roles'
 
-export default function Header({ user, title, theme, onToggleTheme, onMenu, notifications, onOpenNotification, onMarkAllRead, onProfile }) {
+export default function Header({ user, title, theme, onToggleTheme, onMenu, notifications, onOpenNotification, onMarkAllRead, onDeleteAll, onProfile }) {
   return (
     <header className="sticky top-0 z-20 border-b border-violet-500/30 bg-violet-600/95 backdrop-blur dark:bg-violet-700/95">
       <div className="flex h-20 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
@@ -26,7 +26,7 @@ export default function Header({ user, title, theme, onToggleTheme, onMenu, noti
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <ThemeToggle theme={theme} onToggle={onToggleTheme} onHeader />
-          <NotificationMenu notifications={notifications} onOpenItem={onOpenNotification} onMarkAllRead={onMarkAllRead} />
+          <NotificationMenu notifications={notifications} onOpenItem={onOpenNotification} onMarkAllRead={onMarkAllRead} onDeleteAll={onDeleteAll} />
           <ProfileMenu user={user} onProfile={onProfile} />
         </div>
       </div>

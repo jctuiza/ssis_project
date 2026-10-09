@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             // call seeders in order to avoid foreign key constraint errors
             DepartmentSeeder::class,
+            AcademicProgramSeeder::class,
             RoleSeeder::class,
             PermissionSeeder::class,
             RolePermissionSeeder::class,

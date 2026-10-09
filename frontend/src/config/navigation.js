@@ -34,7 +34,7 @@ export const STAFF_PAGES = [
   { key: 'monitor', label: 'Transactions', icon: History, perms: ['transactions.view'] },
   { key: 'students', label: 'Students', icon: Users, perms: ['students.view'] },
   { key: 'enrollment', label: 'Enrollment', icon: GraduationCap, perms: ['enrollment.manage'] },
-  { key: 'subjects', label: 'Subjects', icon: BookOpen, perms: ['enrollment.manage'] },
+  { key: 'subjects', label: 'Subjects', icon: BookOpen, perms: ['subjects.manage'] },
   { key: 'grades', label: 'Grades', icon: BookOpen, perms: ['grades.manage'] },
   { key: 'clearance', label: 'Clearance', icon: ClipboardCheck, perms: ['clearance.registrar', 'clearance.department'] },
   { key: 'documents', label: 'Document Requests', icon: FileText, perms: ['documents.process'] },

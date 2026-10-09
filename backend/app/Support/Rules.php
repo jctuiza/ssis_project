@@ -13,6 +13,7 @@ use App\Models\Grade;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Subject;
+use App\Models\StudentProfile;
 use App\Models\SystemSetting;
 use App\Models\Transaction;
 use App\Models\User;
@@ -56,6 +57,16 @@ class Rules
     {
         Cache::forget(self::SETTINGS_KEY);
         Cache::forget('ssis:settings'); // Remove the legacy serialized-model cache too.
+    }
+
+    /** Reuse the saved spelling of a semester so an alternate label cannot issue another fee. */
+    public static function normalizedTerm(string $term): string
+    {
+        $parts = self::termParts($term);
+        if (!$parts) return $term;
+        $terms = Enrollment::query()->distinct()->pluck('term')->merge(Assessment::query()->distinct()->pluck('term'));
+        foreach ($terms as $saved) if (self::termParts($saved) === $parts) return $saved;
+        return ($parts[1] === 'First Semester' ? '1st' : '2nd').' Semester, A.Y. '.$parts[0];
     }
 
     public static function currentTerm(): string
@@ -140,11 +151,16 @@ class Rules
             ]);
     }
 
-    public static function offeredSubjects(?int $departmentId, ?string $program = null)
+    public static function offeredSubjects(?int $departmentId, ?string $program = null, ?int $yearLevel = null, ?string $term = null, ?string $legacyCurriculum = null): \Illuminate\Support\Collection
     {
-        return Subject::query()
-            ->where(fn ($q) => $q->whereNull('department_id')->orWhere('department_id', $departmentId))
-            ->where(fn ($q) => $q->whereNull('program')->orWhere('program', $program))
+        $parts = self::termParts($term ?? self::currentTerm());
+        if (! $departmentId || ! $program || ! $yearLevel || $yearLevel < 1 || $yearLevel > 5 || ! $parts) {
+            return collect();
+        }
+        return Subject::query()->where('department_id', $departmentId)->where('program', $program)
+            ->where('semester', $parts[1])
+            ->where(fn ($query) => $query->whereNull('academic_year')->orWhere('academic_year', $parts[0]))
+            ->where(fn ($query) => $query->where('year_level', $yearLevel)->orWhereJsonContains('shared_year_levels', $yearLevel))
             ->orderBy('subject_code')->get();
     }
 
@@ -231,7 +247,7 @@ class Rules
     public static function nextStudentNumber(): string
     {
         $year = now()->year;
-        $max = (int) User::where('username', 'like', "{$year}-%")->selectRaw('MAX(CAST(SUBSTRING(username, 6) AS UNSIGNED)) AS m')->value('m');
+        $max = User::where('username', 'like', "{$year}-%")->pluck('username')->map(fn ($id) => (int) substr($id, 5))->max() ?? 0;
 
         return $year.'-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
     }
@@ -257,31 +273,31 @@ class Rules
     }
 
     /** Issue known fees immediately; finalize provisional tuition once subjects are available. */
-    public static function ensureAssessment(User $student): ?Assessment
+    public static function ensureAssessment(User $student, ?string $term = null): ?Assessment
     {
-        $existing = self::assessmentFor($student->user_id);
-        $units = self::enrollmentUnits(self::enrollmentFor($student->user_id));
-        if ($existing) {
-            if ($existing->tuition_pending && $units > 0) {
-                $existing->update(['tuition' => $units * $existing->tuition_rate, 'tuition_pending' => false]);
-                self::notify('student', 'Your tuition assessment is ready. Your remaining balance is '.Fmt::peso(self::balanceOf($existing)).'.', $student->user_id, page: 'payments');
-                self::notify('cashier', "Tuition assessment finalized for {$student->name}.", page: 'assessments');
+        $term ??= self::currentTerm();
+        return DB::transaction(function () use ($student, $term) {
+            User::whereKey($student->user_id)->lockForUpdate()->firstOrFail();
+            $enrollment = Enrollment::where('student_id', $student->user_id)->where('term', $term)->first();
+            $units = self::enrollmentUnits($enrollment);
+            $existing = Assessment::where('student_id', $student->user_id)->where('term', $term)->lockForUpdate()->first();
+            if ($existing) {
+                $tuition = round($units * $existing->tuition_rate, 2);
+                if ($enrollment && $term === self::currentTerm() && ((bool) $existing->tuition_pending !== ($units === 0) || (float) $existing->tuition !== $tuition)) {
+                    $existing->update(['tuition' => $tuition, 'tuition_pending' => $units === 0]);
+                    self::notify('student', 'Your tuition assessment was updated to match your assigned subjects.', $student->user_id, page: 'payments');
+                }
                 return $existing;
             }
-            return null;
-        }
-        $settings = self::settings();
-        $perUnit = (float) ($settings->tuition_per_unit ?? 1500);
-        $misc = (float) ($settings->misc_fees ?? 6500);
-        $a = Assessment::create([
-            'student_id' => $student->user_id, 'term' => self::currentTerm(),
-            'tuition' => $units * $perUnit, 'misc_fees' => $misc,
-            'tuition_pending' => $units === 0, 'tuition_rate' => $perUnit,
-        ]);
-        $note = $a->tuition_pending ? ' Tuition is awaiting subject assignment.' : '';
-        self::notify('cashier', 'New assessment of '.Fmt::peso(self::totalOf($a))." created for {$student->name}.".$note, page: 'assessments');
-        self::notify('student', 'Your assessment of '.Fmt::peso(self::totalOf($a)).' is ready. Settle it at the Cashier.'.$note, $student->user_id, page: 'payments');
-        return $a;
+            $settings = self::settings();
+            $rate = (float) ($settings->tuition_per_unit ?? 1500);
+            $a = Assessment::firstOrCreate(['student_id' => $student->user_id, 'term' => $term], [
+                'tuition' => $units * $rate, 'misc_fees' => (float) ($settings->misc_fees ?? 6500),
+                'tuition_pending' => $units === 0, 'tuition_rate' => $rate,
+            ]);
+            if ($a->wasRecentlyCreated) self::notify('student', 'Your enrollment assessment is available in Payments.', $student->user_id, page: 'payments');
+            return $a;
+        });
     }
 
     // ---- clearance -----------------------------------------------------------------------------------
@@ -297,10 +313,11 @@ class Rules
         if (! $row) {
             return;
         }
+        if (StudentProfile::where('user_id', $studentId)->where('admission_term', self::currentTerm())->exists()) return;
         $a = self::assessmentFor($studentId);
         $balance = $a ? self::balanceOf($a) : null;
         $status = $a && ! $a->tuition_pending && $balance <= 0 ? 'Cleared' : 'Pending';
-        $remarks = $a?->tuition_pending ? 'Tuition is awaiting subject assignment by the Registrar.' : ($status === 'Cleared' ? '' : ($a ? 'Remaining tuition balance of '.Fmt::peso($balance).' must be settled.' : 'No assessment has been issued yet.'));
+        $remarks = $a?->tuition_pending ? 'Tuition is awaiting subject assignment by the Department.' : ($status === 'Cleared' ? '' : ($a ? 'Remaining tuition balance of '.Fmt::peso($balance).' must be settled.' : 'No assessment has been issued yet.'));
         if ($row->status === $status && (string) $row->remarks === $remarks) {
             return;
         }
@@ -314,27 +331,45 @@ class Rules
     // ---- notifications and audit trail ----------------------------------------------------------------
     private static function roleId(string $key): ?int
     {
-        return self::$roleIds[$key] ??= Role::where('key', $key)->value('role_id');
+        return Role::where('key', $key)->value('role_id');
     }
 
     /** Address a notification to one user ($userId), a whole role, or one department's staff ($departmentId). */
     public static function notify(string $role, string $message, ?int $userId = null, ?int $departmentId = null, ?string $page = null): void
     {
+        if (! in_array($page, ['enrollment', 'payments', 'documents', 'clearance', 'grades', 'students', 'home'], true)) return;
         $roleId = self::roleId($role);
         if (! $roleId) {
             return;
         }
+        if (Notification::where('recipient_role_id', $roleId)->where('recipient_id', $userId)->where('department_id', $departmentId)->where('message', $message)->where('created_at', '>=', now()->subMinute())->exists()) return;
         Notification::create(['recipient_role_id' => $roleId, 'recipient_id' => $userId, 'department_id' => $departmentId, 'message' => $message, 'page' => $page]);
     }
 
     public static function logActivity(?User $actor, string $action, ?string $type = null, $id = null): void
     {
+        if (! self::auditable($actor, $action, $type)) return;
+        $safe = [
+            'student'=>'Student record updated', 'enrollment'=>'Enrollment record updated', 'role'=>'Role configuration updated',
+            'settings'=>'System configuration updated', 'user'=>'Administrative account operation',
+        ];
+        $action = $safe[$type] ?? $action;
         ActivityLog::create(['actor_id' => $actor?->user_id, 'action' => $action, 'entity_type' => $type, 'entity_id' => $id === null ? null : (string) $id]);
+    }
+
+    public static function auditable(?User $actor, string $action, ?string $type): bool
+    {
+        if (! $actor || $actor->isStudent()) return false;
+        if (in_array($action, ['Updated own profile', 'Changed own password', 'Updated own profile picture', 'Removed own profile picture'], true)) return false;
+        return in_array($type, ['role','settings','student','enrollment','admission','security'], true)
+            || ($type === 'user' && $actor->role->key === 'admin');
     }
 
     public static function visibleNotifications(User $u)
     {
-        return Notification::where('recipient_role_id', $u->role_id)
+        return Notification::whereNotExists(function ($q) use ($u) {
+            $q->selectRaw('1')->from('notification_dismissals')->whereColumn('notification_dismissals.notification_id', 'notifications.notification_id')->where('notification_dismissals.user_id', $u->user_id);
+        })->where('recipient_role_id', $u->role_id)
             ->where(fn ($q) => $q->whereNull('recipient_id')->orWhere('recipient_id', $u->user_id))
             ->where(fn ($q) => $q->whereNull('department_id')->orWhere('department_id', $u->department_id));
     }

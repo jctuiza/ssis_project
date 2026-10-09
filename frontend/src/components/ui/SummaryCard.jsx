@@ -1,11 +1,14 @@
+import Skeleton from '../loading/Skeleton'
+import { useDataLoading } from '../../context/DataLoading'
 export default function SummaryCard({ label, value, icon: Icon, description }) {
+  const loading = useDataLoading()
   return (
     <section className="rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm dark:border-white/10 dark:bg-[#26272c] dark:shadow-none">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-          <p className="mt-2 truncate text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{value}</p>
-          {description && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{description}</p>}
+          <p className="mt-2 truncate text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{loading ? <Skeleton className="h-8 w-24" /> : value}</p>
+          {description && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{loading ? <Skeleton className="h-4 w-36" /> : description}</p>}
         </div>
         {Icon && (
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">

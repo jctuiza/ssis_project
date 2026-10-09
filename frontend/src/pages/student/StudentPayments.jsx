@@ -1,3 +1,4 @@
+import { DataLoading } from '../../context/DataLoading'
 import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { Landmark, Wallet } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
@@ -19,15 +20,18 @@ import { getNotifications } from '../../services/admin/activityService'
 // and recorded by the Cashier, so there is no pay button here.
 export default function StudentPayments() {
   const { user } = useSession()
-  const { data, loading, error } = useService(() => paymentService.getAccountForStudent(user.id), [user.id], "pages/student/StudentPayments.jsx:1")
+  const { data: received, loading, error } = useService(() => paymentService.getAccountForStudent(user.id), [user.id], "pages/student/StudentPayments.jsx:1")
   const notes = useService(() => getNotifications(), [], "pages/student/StudentPayments.jsx:2")
+  const waiting = loading && received == null
+  const data = received ?? { assessment: {}, history: [], documentFees: [] }
   const a = data?.assessment
   const paymentNotes = (notes.data ?? []).filter((n) => n.page === 'payments').slice(0, 5)
 
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Payments"/>
-      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="payments" />}>
+      <DataLoading value={waiting}>
+      {error && <p role="alert" className="text-sm text-rose-500">{error.message}</p>}
         {data && (
           <>
             {a ? (
@@ -39,7 +43,7 @@ export default function StudentPayments() {
                   <SummaryCard label="Payment status" value={a.status} icon={Wallet} />
                 </section>
                 <Card title="Assessment" description={a.term}>
-                  {a.tuitionPending && <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">Miscellaneous fees are shown below. Tuition and the final total will be updated once the Registrar assigns matching subjects.</p>}
+                  {a.tuitionPending && <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">Miscellaneous fees are shown below. Tuition and the final total will be updated once the Department assigns matching subjects.</p>}
                   <InfoGrid columns="sm:grid-cols-3" items={[
                     { label: 'Tuition', value: a.tuitionPending ? 'Awaiting subjects' : peso(a.tuition) },
                     { label: 'Miscellaneous fees', value: peso(a.misc) },
@@ -86,7 +90,7 @@ export default function StudentPayments() {
             </Card>
           </>
         )}
-      </AsyncView>
+      </DataLoading>
     </div>
   )
 }

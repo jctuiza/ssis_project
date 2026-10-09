@@ -1,4 +1,8 @@
+import Skeleton from '../loading/Skeleton'
+import { useDataLoading } from '../../context/DataLoading'
 export default function ActivityList({ items, empty = 'No recent activity.' }) {
+  const loading = useDataLoading()
+  if (loading) return <div aria-busy="true" className="space-y-4">{Array.from({length:3},(_,i)=><Skeleton key={i} className="h-10 w-full" />)}</div>
   if (!items?.length) return <p className="text-sm text-slate-400">{empty}</p>
   return (
     <ul className="space-y-4">

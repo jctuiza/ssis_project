@@ -23,9 +23,11 @@ class AcademicWorkflowTest extends TestCase
         Cache::flush();
         $role = Role::create(['key' => 'student', 'label' => 'Student']);
         SystemSetting::create(['system_name' => 'SSIS', 'current_term' => '1st Semester, A.Y. 2026-2027']);
-        $student = User::create(['username' => '2026-test', 'name' => 'Test student', 'email' => 'student@example.test', 'password' => 'test-password', 'role_id' => $role->role_id]);
+        $dept=\App\Models\Department::create(['code'=>'CCS','name'=>'Computing']);
+        \App\Models\AcademicProgram::create(['department_id'=>$dept->department_id,'name'=>'BS Information Technology','duration_years'=>4,'active_curriculum'=>'Current','promotion_pass_mark'=>75]);
+        $student = User::create(['username' => '2026-test', 'name' => 'Test student', 'email' => 'student@example.test', 'password' => 'test-password', 'role_id' => $role->role_id, 'department_id'=>$dept->department_id]);
         StudentProfile::create(['user_id' => $student->user_id, 'program' => 'BS Information Technology', 'year_level' => '1st Year', 'birthdate' => '2005-01-01', 'address' => 'Test address']);
-        Subject::create(['subject_code' => 'IT101', 'name' => 'Computing', 'units' => 3]);
+        Subject::create(['subject_code' => 'IT101', 'name' => 'Computing', 'units' => 3,'department_id'=>\App\Models\Department::where('code','CCS')->value('department_id'),'program'=>'BS Information Technology','year_level'=>1,'semester'=>'First Semester','curriculum'=>'Current']);
         return $student;
     }
 
@@ -87,7 +89,7 @@ class AcademicWorkflowTest extends TestCase
         $student = $this->student();
         Subject::where('subject_code', 'IT101')->update(['program' => 'BS Information Technology']);
         Subject::create(['subject_code' => 'CS101', 'name' => 'Computer Science', 'units' => 3, 'program' => 'BS Computer Science']);
-        $this->assertSame(['IT101'], Rules::offeredSubjects(null, 'BS Information Technology')->pluck('subject_code')->all());
+        $this->assertSame(['IT101'], Rules::offeredSubjects($student->department_id, 'BS Information Technology',1)->pluck('subject_code')->all());
     }
     public function test_students_without_subjects_have_known_fees_but_cannot_clear_cashier(): void
     {
@@ -122,7 +124,7 @@ class AcademicWorkflowTest extends TestCase
         $this->assertSame('Pending', Clearance::where('office', 'Cashier')->value('status'));
         $misc = $original->misc_fees;
         SystemSetting::first()->update(['tuition_per_unit' => 9999, 'misc_fees' => 9999]);
-        Subject::create(['subject_code' => 'IT102', 'name' => 'Computing', 'units' => 3]);
+        Subject::create(['subject_code' => 'IT102', 'name' => 'Computing', 'units' => 3,'department_id'=>\App\Models\Department::where('code','CCS')->value('department_id'),'program'=>'BS Information Technology','year_level'=>1,'semester'=>'First Semester','curriculum'=>'Current']);
         AcademicEnrollment::prepare($student);
         $assessment = Rules::assessmentFor($student->user_id);
         $this->assertSame($original->assessment_id, $assessment->assessment_id);

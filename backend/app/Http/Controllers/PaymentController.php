@@ -82,7 +82,7 @@ class PaymentController extends ApiController
 
         $txn = DB::transaction(function () use ($assessment, $value, $method, $actor) {
             // Lock the assessment row so two simultaneous payments cannot overpay the same balance.
-            Assessment::where('assessment_id', $assessment->assessment_id)->lockForUpdate()->first();
+            $assessment = Assessment::where('assessment_id', $assessment->assessment_id)->lockForUpdate()->firstOrFail();
             $balance = Rules::balanceOf($assessment);
             if ($balance <= 0) {
                 throw new ApiError('This account is already fully paid.');
@@ -102,10 +102,8 @@ class PaymentController extends ApiController
         $to = fn (string $message) => Rules::notify('student', $message, $assessment->student_id, page: 'payments');
         if ($remaining > 0 || $assessment->tuition_pending) {
             $to('Partial payment of '.Fmt::peso($value)." recorded ({$txn->reference_no}). Total paid so far: ".Fmt::peso(Rules::tuitionPaid($assessment->assessment_id)).'.');
-            $to('Balance updated: your remaining assessed balance is '.Fmt::peso($remaining).'.'.($assessment->tuition_pending ? ' Tuition is still awaiting subject assignment.' : ''));
         } else {
             $to('Payment of '.Fmt::peso($value)." recorded ({$txn->reference_no}). Your balance is fully paid. Thank you!");
-            $to('Balance updated: your outstanding balance is ₱0.00 and your status is Fully Paid.');
         }
         $this->log($request, "Recorded payment {$txn->reference_no}", 'transaction', $txn->transaction_id);
 

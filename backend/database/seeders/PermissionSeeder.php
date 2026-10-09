@@ -13,6 +13,7 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = [
+            ['key'=>'subjects.manage','label'=>'Manage department subjects','group'=>'Subjects'],
             [
                 'key' => 'students.view',
                 'label' => 'View student records',

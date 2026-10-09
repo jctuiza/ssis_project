@@ -1,3 +1,4 @@
+import { DataLoading } from '../../context/DataLoading'
 import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { Camera } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
@@ -11,12 +12,15 @@ import * as studentService from '../../services/student/studentService'
 
 export default function StudentID() {
   const { user, navigate } = useSession()
-  const { data, loading, error } = useService(() => studentService.getIdCard(user.id), [user.id], "pages/student/StudentID.jsx:1")
+  const { data: received, loading, error } = useService(() => studentService.getIdCard(user.id), [user.id], "pages/student/StudentID.jsx:1")
 
+  const waiting = loading && received == null
+  const data = received ?? { ...user, id: user.id, term: '', emergencyName: user.emergencyName, emergencyContact: user.emergencyContact, signature: user.name }
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader eyebrow="Student ID"/>
-      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="id" />}>
+      <DataLoading value={waiting}>
+      {error && <p role="alert" className="text-rose-500">{error.message}</p>}
         {data && (
           <>
             {/* The photo comes straight from the session, so a new profile picture shows here instantly. */}
@@ -31,7 +35,7 @@ export default function StudentID() {
             </Card>
           </>
         )}
-      </AsyncView>
+      </DataLoading>
     </div>
   )
 }

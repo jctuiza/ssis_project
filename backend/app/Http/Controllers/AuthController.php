@@ -55,6 +55,7 @@ class AuthController extends ApiController
             throw new ApiError('The system is under maintenance. Only administrators can log in right now.', 503);
         }
 
+        Rules::logActivity($account, 'Successful staff sign-in', 'security', $account->user_id);
         $token = $account->createToken('ssis', ['*'], now()->addHours(8))->plainTextToken;
 
         return [
@@ -67,7 +68,7 @@ class AuthController extends ApiController
     // GET /api/me   (restores the session after a page refresh)
     public function me(Request $request)
     {
-        return ['user' => Resources::sessionUser($request->user()->load('role'))];
+        return response()->json(['user' => Resources::sessionUser($request->user()->load('role'))])->header('Cache-Control','no-store');
     }
 
     // POST /api/logout

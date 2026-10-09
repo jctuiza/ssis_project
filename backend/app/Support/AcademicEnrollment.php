@@ -19,14 +19,25 @@ class AcademicEnrollment
         DB::transaction(function () use ($student) {
             User::whereKey($student->user_id)->lockForUpdate()->firstOrFail();
             $term = Rules::currentTerm();
-            $enrollment = Enrollment::firstOrCreate(['student_id' => $student->user_id, 'term' => $term], ['status' => 'Not Enrolled']);
-            if ($enrollment->status !== 'Enrolled' && ! EnrollmentSubject::where('enrollment_id', $enrollment->enrollment_id)->exists()) {
-                foreach (Rules::offeredSubjects($student->department_id, Resources::programOf($student->user_id)) as $subject) {
-                    EnrollmentSubject::create([
-                        'enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code,
-                        'subject_name' => $subject->name, 'units' => $subject->units, 'schedule' => $subject->schedule,
-                    ]);
+            $enrollment = Enrollment::firstOrCreate(['student_id' => $student->user_id, 'term' => $term], ['status' => 'Not Enrolled'] + AcademicAssignments::snapshot($student));
+            if ($enrollment->status !== 'Enrolled') {
+                $enrollment->update(AcademicAssignments::snapshot($student));
+            }
+            $subjects = Rules::offeredSubjects($student->department_id, $enrollment->program_snapshot, $enrollment->year_level, $term);
+            if ($enrollment->status !== 'Enrolled') {
+                EnrollmentSubject::where('enrollment_id', $enrollment->enrollment_id)->whereNotIn('subject_code', $subjects->pluck('subject_code'))->delete();
+            }
+            foreach ($subjects as $subject) {
+                $key = ['enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code];
+                $values = ['subject_name' => $subject->name, 'units' => $subject->units, 'schedule' => $subject->schedule];
+                if ($enrollment->status === 'Enrolled') {
+                    EnrollmentSubject::firstOrCreate($key, $values);
+                } else {
+                    EnrollmentSubject::updateOrCreate($key, $values);
                 }
+            }
+            if ($enrollment->status === 'Enrolled') {
+                Rules::createGradeRows($student, $enrollment);
             }
             foreach (Rules::OFFICES as $office) {
                 Clearance::firstOrCreate(['student_id' => $student->user_id, 'office' => $office, 'term' => $term], ['status' => 'Pending', 'remarks' => '']);
@@ -55,6 +66,7 @@ class AcademicEnrollment
                 return false;
             }
             $enrollment->update(['status' => 'Enrolled', 'submitted_at' => now(), 'reviewed_at' => now(), 'remarks' => 'Enrollment confirmed by the student after completing clearance.']);
+            \App\Models\StudentProfile::where('user_id', $fresh->user_id)->whereNull('enrolled_on')->update(['enrolled_on'=>now()]);
             Rules::createGradeRows($fresh, $enrollment);
             Rules::notify('student', 'Your confirmed enrollment is complete for '.$enrollment->term.'.', $fresh->user_id, page: 'enrollment');
             Rules::notify('registrar', $fresh->name.' confirmed enrollment after completing clearance.', page: 'enrollment');

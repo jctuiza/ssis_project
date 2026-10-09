@@ -14,6 +14,7 @@ class EnrollmentController extends ApiController
     public function forStudent(Request $request, string $id): array
     {
         $student = $this->ownOrStaff($request, $id, 'students.view', 'enrollment.manage');
+        AcademicEnrollment::prepare($student);
         $enrollment = Rules::enrollmentFor($student->user_id);
         $assessment = Rules::assessmentFor($student->user_id);
         return [

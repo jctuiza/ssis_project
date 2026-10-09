@@ -1,37 +1,37 @@
 import { lazy, Suspense } from 'react'
 import PageSkeleton from '../components/loading/PageSkeleton'
 import RouteErrorBoundary from '../components/feedback/RouteErrorBoundary'
-const StudentHome = lazy(() => import('../pages/student/StudentHome'))
-const StudentEnrollment = lazy(() => import('../pages/student/StudentEnrollment'))
-const StudentGrades = lazy(() => import('../pages/student/StudentGrades'))
-const StudentClearance = lazy(() => import('../pages/student/StudentClearance'))
-const StudentDocuments = lazy(() => import('../pages/student/StudentDocuments'))
-const StudentPayments = lazy(() => import('../pages/student/StudentPayments'))
-const StudentID = lazy(() => import('../pages/student/StudentID'))
-const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
-const UserManagement = lazy(() => import('../pages/admin/UserManagement'))
-const Roles = lazy(() => import('../pages/admin/Roles'))
-const Departments = lazy(() => import('../pages/admin/Departments'))
-const ActivityLogs = lazy(() => import('../pages/admin/ActivityLogs'))
-const SettingsPage = lazy(() => import('../pages/admin/SettingsPage'))
-const Announcements = lazy(() => import('../pages/admin/Announcements'))
-const RegistrarDashboard = lazy(() => import('../pages/registrar/RegistrarDashboard'))
-const RegistrarEnrollment = lazy(() => import('../pages/registrar/RegistrarEnrollment'))
-const RegistrarSubjects = lazy(() => import('../pages/registrar/RegistrarSubjects'))
-const RegistrarGrades = lazy(() => import('../pages/registrar/RegistrarGrades'))
-const CashierDashboard = lazy(() => import('../pages/cashier/CashierDashboard'))
-const StudentAccounts = lazy(() => import('../pages/cashier/StudentAccounts'))
-const Assessments = lazy(() => import('../pages/cashier/Assessments'))
-const Payments = lazy(() => import('../pages/cashier/Payments'))
-const DocumentFees = lazy(() => import('../pages/cashier/DocumentFees'))
-const Transactions = lazy(() => import('../pages/cashier/Transactions'))
-const DepartmentDashboard = lazy(() => import('../pages/department/DepartmentDashboard'))
-const Profile = lazy(() => import('../pages/shared/Profile'))
-const ReportsPage = lazy(() => import('../pages/shared/ReportsPage'))
-const StudentsPage = lazy(() => import('../pages/shared/StudentsPage'))
-const RecordsPage = lazy(() => import('../pages/shared/RecordsPage'))
-const StaffDocuments = lazy(() => import('../pages/shared/StaffDocuments'))
-const StaffClearance = lazy(() => import('../pages/shared/StaffClearance'))
+import StudentHome from '../pages/student/StudentHome'
+import StudentEnrollment from '../pages/student/StudentEnrollment'
+import StudentGrades from '../pages/student/StudentGrades'
+import StudentClearance from '../pages/student/StudentClearance'
+import StudentDocuments from '../pages/student/StudentDocuments'
+import StudentPayments from '../pages/student/StudentPayments'
+import StudentID from '../pages/student/StudentID'
+import AdminDashboard from '../pages/admin/AdminDashboard'
+import UserManagement from '../pages/admin/UserManagement'
+import Roles from '../pages/admin/Roles'
+import Departments from '../pages/admin/Departments'
+import ActivityLogs from '../pages/admin/ActivityLogs'
+import SettingsPage from '../pages/admin/SettingsPage'
+import Announcements from '../pages/admin/Announcements'
+import RegistrarDashboard from '../pages/registrar/RegistrarDashboard'
+import RegistrarEnrollment from '../pages/registrar/RegistrarEnrollment'
+import RegistrarSubjects from '../pages/registrar/RegistrarSubjects'
+import RegistrarGrades from '../pages/registrar/RegistrarGrades'
+import CashierDashboard from '../pages/cashier/CashierDashboard'
+import StudentAccounts from '../pages/cashier/StudentAccounts'
+import Assessments from '../pages/cashier/Assessments'
+import Payments from '../pages/cashier/Payments'
+import DocumentFees from '../pages/cashier/DocumentFees'
+import Transactions from '../pages/cashier/Transactions'
+import DepartmentDashboard from '../pages/department/DepartmentDashboard'
+import Profile from '../pages/shared/Profile'
+import ReportsPage from '../pages/shared/ReportsPage'
+import StudentsPage from '../pages/shared/StudentsPage'
+import RecordsPage from '../pages/shared/RecordsPage'
+import StaffDocuments from '../pages/shared/StaffDocuments'
+import StaffClearance from '../pages/shared/StaffClearance'
 import { can } from '../config/permissions'
 
 const STUDENT_PAGES = {
@@ -59,7 +59,7 @@ const staffPages = (user) => ({
   settings: [['settings.manage'], () => <SettingsPage />],
   students: [['students.view'], () => <StudentsPage description={user.departmentId ? 'Students under your department.' : 'Search, register and review student records.'} />],
   enrollment: [['enrollment.manage'], () => <RegistrarEnrollment />],
-  subjects: [['enrollment.manage'], () => <RegistrarSubjects />],
+  subjects: [['subjects.manage'], () => <RegistrarSubjects />],
   grades: [['grades.manage'], () => <RegistrarGrades />],
   clearance: [
     ['clearance.registrar', 'clearance.department'],

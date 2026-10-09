@@ -29,7 +29,8 @@ const today = () => new Date().toISOString().slice(0, 10)
 export default function StudentsPage({ description }) {
   const { user } = useSession()
   const { notify } = useToast()
-  const departmentId = user.departmentId ?? undefined
+  const [selectedDepartment, setSelectedDepartment] = useState('')
+  const departmentId = user.departmentId ?? (selectedDepartment || undefined)
   const canManage = can(user, 'students.manage')
   const departments = useService(adminService.getDepartments, [], "pages/shared/StudentsPage.jsx:1")
 
@@ -41,7 +42,7 @@ export default function StudentsPage({ description }) {
 
   const programOptions = programsForDepartment(departments.data, form?.values.departmentId)
   const validate = (values) => {
-    const found = validateStudent(values, { requireDepartment: !departmentId })
+    const found = validateStudent(values, { requireDepartment: !user.departmentId })
     const options = programsForDepartment(departments.data, values.departmentId)
     if (values.program && !options.some(option => option.value === values.program)) {
       found.program = 'Select a program offered by the selected department.'
@@ -61,7 +62,7 @@ export default function StudentsPage({ description }) {
 
   const openCreate = () => {
     setErrors({})
-    setForm({ values: { ...EMPTY, departmentId: departmentId ?? '' } })
+    setForm({ values: { ...EMPTY, departmentId: user.departmentId ?? '' } })
   }
   const openEdit = (s) => {
     setErrors({})
@@ -131,6 +132,7 @@ export default function StudentsPage({ description }) {
     { key: 'program', label: 'Program', sortable: true },
     { key: 'yearLevel', label: 'Year level' },
     { key: 'department', label: 'Dept.' },
+    { key: 'enrolledOn', label: 'Enrolled On', sortable: true, render: s => s.enrolledOn ? new Date(s.enrolledOn).toLocaleDateString() : 'Not enrolled' },
     { key: 'enrollmentStatus', label: 'Enrollment', render: (s) => <StatusBadge status={s.enrollmentStatus} /> },
   ]
 
@@ -143,6 +145,7 @@ export default function StudentsPage({ description }) {
         load={() => studentService.getStudents({ departmentId })}
         deps={[departmentId]}
         columns={columns}
+        headerContent={!user.departmentId && <Select label="Department" placeholder="All departments" value={selectedDepartment} onChange={e=>setSelectedDepartment(e.target.value)} disabled={departments.loading} options={(departments.data ?? []).map(d=>({value:d.id,label:`${d.code} – ${d.name}`}))} />}
         searchKeys={['id', 'name', 'program']}
         searchPlaceholder="Search Student ID or name"
         filter={{ key: 'enrollmentStatus', options: ENROLLMENT_STATUSES }}
@@ -159,6 +162,7 @@ export default function StudentsPage({ description }) {
         {viewing && (
           <InfoGrid items={[
             { label: 'Student ID', value: viewing.id },
+            { label: 'Enrolled On', value: viewing.enrolledOn ? new Date(viewing.enrolledOn).toLocaleString() : 'Not enrolled' },
             { label: 'Email', value: viewing.email },
             { label: 'Birthday', value: viewing.birthday },
             { label: 'Age', value: viewing.age },
@@ -197,7 +201,7 @@ export default function StudentsPage({ description }) {
               className="[&_input]:cursor-not-allowed [&_input]:opacity-70"
             />
             <Textarea label="Address" rows={2} className="sm:col-span-2" {...field('address')} />
-            {!departmentId && (
+            {!user.departmentId && (
               <Select label="Department" className="sm:col-span-2" placeholder={departments.loading ? 'Loading departments…' : 'Select department'} disabled={departments.loading} options={(departments.data ?? []).map((d) => ({ value: d.id, label: `${d.code} – ${d.name}` }))} {...field('departmentId')} />
             )}
             <Select

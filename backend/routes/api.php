@@ -14,12 +14,25 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SubjectController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('admissions/options', [\App\Http\Controllers\AdmissionController::class, 'options'])->middleware('throttle:60,1');
+Route::post('admissions', [\App\Http\Controllers\AdmissionController::class, 'store'])->middleware('throttle:5,1');
+
 // Public: the login pages need the role list, and the login itself is rate limited (brute-force protection).
 Route::get('roles/public', [AuthController::class, 'publicRoles']);
 Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 // Everything else needs a valid bearer token. Permissions are checked again inside each controller.
-Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\ValidatePortalSession::class, 'throttle:api'])->group(function () {
+    Route::post('admissions/{id}/registrar-credentials', [\App\Http\Controllers\AdmissionController::class, 'registrarCredentials'])->whereNumber('id')->middleware('throttle:10,1');
+    Route::post('admissions/{id}/email-credentials', [\App\Http\Controllers\AdmissionController::class, 'emailCredentials'])->whereNumber('id')->middleware('throttle:5,1');
+    Route::get('academic/programs', [\App\Http\Controllers\AcademicProgressionController::class, 'programs']);
+    Route::patch('academic/programs/{id}', [\App\Http\Controllers\AcademicProgressionController::class, 'updateProgram'])->whereNumber('id');
+    Route::post('academic/promotions/preview', [\App\Http\Controllers\AcademicProgressionController::class, 'preview']);
+    Route::post('academic/promotions/activate', [\App\Http\Controllers\AcademicProgressionController::class, 'activate']);
+    Route::get('admissions/{id}/readiness', [\App\Http\Controllers\AdmissionController::class, 'readiness'])->whereNumber('id');
+    Route::get('admissions', [\App\Http\Controllers\AdmissionController::class, 'index']);
+    Route::patch('admissions/{id}', [\App\Http\Controllers\AdmissionController::class, 'decide'])->whereNumber('id');
+    Route::delete('notifications', [AccountController::class, 'deleteNotifications']);
     Route::get('me', [AuthController::class, 'me']);
     Route::post('logout', [AuthController::class, 'logout']);
 

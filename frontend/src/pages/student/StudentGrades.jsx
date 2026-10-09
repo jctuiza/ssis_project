@@ -1,3 +1,5 @@
+import StatusBadge from '../../components/ui/StatusBadge'
+import Skeleton from '../../components/loading/Skeleton'
 import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { useState } from 'react'
 import Card from '../../components/ui/Card'
@@ -9,7 +11,7 @@ import * as gradeService from '../../services/shared/gradeService'
 import PageHeader from '../../components/ui/PageHeader'
 
 const termLabel = (t) => `A.Y. ${t.academicYear}, ${t.semester}`
-const show = (value) => (value == null ? '--' : value.toFixed(2))
+const show = (value) => (value == null ? '--' : Number(value).toFixed(2))
 
 const th = 'px-4 py-3 text-left font-semibold text-slate-900 dark:text-white'
 const thCenter = 'px-4 py-3 text-center font-semibold text-slate-900 dark:text-white'
@@ -22,13 +24,16 @@ export default function StudentGrades() {
   const [selectedId, setSelectedId] = useState('')
 
   // Terms are ordered oldest to newest, so the latest one is the default.
-  const current = terms?.find((t) => t.id === selectedId) ?? terms?.[terms.length - 1]
+  const loadedTerm = terms?.find((t) => t.id === selectedId) ?? terms?.[terms.length - 1]
 
+  const waiting = loading && terms == null
+  const current = loadedTerm ?? { id: '', semester: '', academicYear: '', program: user.program, courses: [] }
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades"/>
-      <AsyncView loading={loading} error={error} hasData={terms != null} skeleton={<ScreenSkeleton kind="grades" />}>
-        {terms && !current && (
+      <>
+      {error && <p role="alert" className="text-sm text-rose-500">{error.message}</p>}
+        {terms && !loadedTerm && (
           <Card><p className="text-sm text-slate-500 dark:text-slate-400">No grades have been posted yet.</p></Card>
         )}
 
@@ -39,13 +44,14 @@ export default function StudentGrades() {
               aria-label="Academic year and semester"
               value={current.id}
               onChange={(e) => setSelectedId(e.target.value)}
-              options={terms.map((t) => ({ value: t.id, label: termLabel(t) }))}
+              disabled={waiting || !terms?.length}
+              options={(terms ?? []).map((t) => ({ value: t.id, label: termLabel(t) }))}
               className="w-full sm:max-w-sm"
             />
 
             <Card
               padded={false}
-              title={`${current.semester} A.Y. ${current.academicYear}`}
+              title={waiting ? 'Grades' : loadedTerm ? `${current.semester} A.Y. ${current.academicYear}` : 'Grades'}
               action={<span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{current.program}</span>}
             >
               <div className="overflow-x-auto">
@@ -57,10 +63,11 @@ export default function StudentGrades() {
                       <th className={thCenter}>Units</th>
                       <th className={thCenter}>Prelim</th>
                       <th className={thCenter}>Midterm</th>
-                      <th className={thCenter}>Finals</th>
+                      <th className={thCenter}>Finals</th><th className={thCenter}>Final grade</th><th className={thCenter}>Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-white/10">
+                    {waiting && Array.from({length:8},(_,i)=><tr key={`loading-${i}`}>{Array.from({length:8},(_,j)=><td key={j} className={td}><Skeleton className="h-5 w-full" /></td>)}</tr>)}
                     {current.courses.map((c) => (
                       <tr key={c.code} className="transition hover:bg-page dark:hover:bg-white/[0.03]">
                         <td className={td}>{c.code}</td>
@@ -68,7 +75,7 @@ export default function StudentGrades() {
                         <td className={tdCenter}>{c.units}</td>
                         <td className={tdCenter}>{show(c.prelim)}</td>
                         <td className={tdCenter}>{show(c.midterm)}</td>
-                        <td className={tdCenter}>{show(c.finals)}</td>
+                        <td className={tdCenter}>{show(c.finals)}</td><td className={tdCenter}>{show(c.finalGrade)}</td><td className={tdCenter}><StatusBadge status={c.status ?? 'Incomplete'} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -77,7 +84,7 @@ export default function StudentGrades() {
             </Card>
           </>
         )}
-      </AsyncView>
+      </>
     </div>
   )
 }

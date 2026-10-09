@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { GraduationCap } from 'lucide-react'
 import Button from '../ui/Button'
@@ -68,6 +69,7 @@ export default function LoginForm({
           {loading ? 'Signing in…' : `Login as ${config.label}`}
         </Button>
 
+        {role === 'student' && <p className="mt-4 text-center text-xs text-slate-500">Incoming first-year student? <Link to="/online-enrollment" className="text-violet-600 underline">Apply online</Link></p>}
         {config.demo && <p className="mt-6 text-xs text-slate-400 dark:text-slate-500">Demo: {config.demo}</p>}
       </form>
     </div>

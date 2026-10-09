@@ -74,7 +74,7 @@ class ReportController extends ApiController
         $mine = $dept ? $students->where('department_id', $dept) : $students;
         $ids = $mine->pluck('user_id')->all();
         $requests = DocumentRequest::whereIn('student_id', $ids)->get();
-        $assessments = Assessment::all();
+        $assessments = Assessment::where('term', Rules::currentTerm())->get();
         $transactions = Transaction::all();
         $clearances = Clearance::where('term', Rules::currentTerm())->get();
 

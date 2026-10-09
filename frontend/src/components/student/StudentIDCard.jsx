@@ -1,3 +1,5 @@
+import Skeleton from '../loading/Skeleton'
+import { useDataLoading } from '../../context/DataLoading'
 import '@fontsource/caveat/latin-500.css'
 import { GraduationCap } from 'lucide-react'
 import Avatar from '../ui/Avatar'
@@ -36,10 +38,11 @@ function Header({ title, subtitle }) {
 }
 
 function Field({ label, value }) {
+  const loading = useDataLoading()
   return (
     <div className="min-w-0">
       <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-0.5 break-words text-xs font-medium text-slate-800 dark:text-slate-100">{value || '—'}</dd>
+      <dd className="mt-0.5 break-words text-xs font-medium text-slate-800 dark:text-slate-100">{loading ? <Skeleton className="h-4 w-3/4" /> : value || '—'}</dd>
     </div>
   )
 }

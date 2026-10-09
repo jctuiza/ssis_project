@@ -66,10 +66,11 @@ export default function StudentDocuments() {
     <div className="space-y-6">
       <PageHeader eyebrow="Document Requests"/>
 
-      <AsyncView loading={types.loading} error={types.error} hasData={types.data != null} skeleton={<DocumentRequestFormSkeleton />}>
+      <>
+      {types.error && <p role="alert">{types.error.message} <button className="underline" onClick={types.reload}>Retry</button></p>}
       <Card title="New request" description="Pick a document and submit. You will be asked to confirm before it is sent. The fee is paid at the Cashier.">
         <form onSubmit={askConfirmation} noValidate className="grid gap-4 md:grid-cols-2">
-          <Select label="Document type" value={type} onChange={(e) => setType(e.target.value)} placeholder="Select a document" options={(types.data ?? []).map((t) => t.name)} error={error} />
+          <Select label="Document type" disabled={types.loading || Boolean(types.error)} value={type} onChange={(e) => setType(e.target.value)} placeholder="Select a document" options={(types.data ?? []).map((t) => t.name)} error={error} />
           <Input label="Purpose (optional)" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Scholarship application" />
           {chosen && (
             <p className="text-xs text-slate-500 dark:text-slate-400 md:col-span-2">
@@ -77,18 +78,20 @@ export default function StudentDocuments() {
               {chosen.requiredClearances.length > 0 && ` · Requires clearance from: ${chosen.requiredClearances.join(', ')}`}
             </p>
           )}
-          <div className="md:col-span-2"><Button type="submit">Submit request</Button></div>
+          <div className="md:col-span-2"><Button type="submit" disabled={types.loading || Boolean(types.error)}>Submit request</Button></div>
         </form>
       </Card>
 
-      </AsyncView>
+      </>
 
-      <AsyncView loading={requests.loading} error={requests.error} hasData={requests.data != null} skeleton={<DocumentRequestsTableSkeleton />}>
-        {requests.data && (
+      <>
+      {requests.error && <p role="alert">{requests.error.message} <button className="underline" onClick={requests.reload}>Retry</button></p>}
+        {true && (
           <Card title="My requests" padded={false}>
             <DataTable
               rowKey="ref"
-              rows={requests.data}
+              rows={requests.data ?? []}
+              loading={requests.loading && requests.data == null}
               searchKeys={['ref', 'type']}
               searchPlaceholder="Search reference or document"
               filter={{ key: 'status', options: DOCUMENT_STATUSES }}
@@ -104,7 +107,7 @@ export default function StudentDocuments() {
             />
           </Card>
         )}
-      </AsyncView>
+      </>
 
       {/* Confirmation pop-up shown after pressing "Submit request" */}
       <Modal

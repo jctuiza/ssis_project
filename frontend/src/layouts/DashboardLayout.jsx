@@ -1,11 +1,13 @@
+import { useToast } from '../context/toast'
 import { useState } from 'react'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
 import useService from '../hooks/useService'
-import { getNotifications, markNotificationsRead } from '../services/admin/activityService'
+import { getNotifications, markNotificationsRead, deleteNotifications } from '../services/admin/activityService'
 import { navFor } from '../config/navigation'
 
 export default function DashboardLayout({ user, theme, onToggleTheme, onLogout, currentPage, onNavigate, children }) {
+  const { notify } = useToast()
   const [mobileOpen, setMobileOpen] = useState(false)
   // false = expanded, true = collapsed (desktop)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -17,8 +19,11 @@ export default function DashboardLayout({ user, theme, onToggleTheme, onLogout, 
   const title = items.find((n) => n.key === currentPage)?.label ?? items[0]?.label
 
   const markAllRead = async () => {
-    await markNotificationsRead()
-    reload()
+    try { await markNotificationsRead(); reload() } catch(error) { notify(error.message, 'error') }
+  }
+
+  const deleteAll = async () => {
+    try { await deleteNotifications(); reload(); notify('Your notifications were cleared.') } catch(error) { notify(error.message, 'error'); throw error }
   }
 
   return (
@@ -45,6 +50,7 @@ export default function DashboardLayout({ user, theme, onToggleTheme, onLogout, 
           notifications={notifications ?? []}
           onOpenNotification={(n) => n.page && items.some((i) => i.key === n.page) && onNavigate(n.page)}
           onMarkAllRead={markAllRead}
+          onDeleteAll={deleteAll}
           onProfile={() => onNavigate('profile')}
         />
         <main className="mx-auto w-full max-w-[1500px] px-4 py-7 sm:px-6 lg:px-8 lg:py-9">{children}</main>

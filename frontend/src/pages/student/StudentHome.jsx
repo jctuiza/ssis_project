@@ -1,3 +1,5 @@
+import Skeleton from '../../components/loading/Skeleton'
+import { DataLoading } from '../../context/DataLoading'
 import StudentHomeSkeleton from '../../components/loading/StudentHomeSkeleton'
 import { GraduationCap, BookOpen, ClipboardCheck, FileText, Wallet, UserRound, Megaphone } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
@@ -27,12 +29,16 @@ const quick = [
 // so a Registrar approval or a Cashier payment shows up without a reload.
 export default function StudentHome() {
   const { user, navigate } = useSession()
-  const { data, loading, error } = useService(() => studentService.getDashboard(user.id), [user.id], "pages/student/StudentHome.jsx:1")
+  const { data: received, loading, error } = useService(() => studentService.getDashboard(user.id), [user.id], "pages/student/StudentHome.jsx:1")
+
+  const waiting = loading && received == null
+  const data = received ?? { student: user, term: '', payment: null, balance: null, pendingRequests: null, awaitingPayment: 0, clearance: {}, requests: [], transactions: [], notifications: [], announcements: [] }
 
   return (
     <div className="space-y-7">
       <PageHeader eyebrow="Homepage"/>
-      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<StudentHomeSkeleton />}>
+      <DataLoading value={waiting}>
+      {error && <p role="alert" className="text-sm text-rose-500">{error.message}</p>}
         {data && (
           <>
             <Card title="Student information">
@@ -86,6 +92,7 @@ export default function StudentHome() {
               <Card title="Recent notifications" description="Requests, payments and clearance"><ActivityList items={data.notifications} empty="No notifications yet." /></Card>
               <Card title="Announcements" description="From the university">
                 <ul className="space-y-4">
+                  {waiting && <Skeleton className="h-24 w-full" />}
                   {data.announcements.map((a) => (
                     <li key={a.id} className="flex gap-3">
                       <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
@@ -101,7 +108,7 @@ export default function StudentHome() {
             </section>
           </>
         )}
-      </AsyncView>
+      </DataLoading>
     </div>
   )
 }

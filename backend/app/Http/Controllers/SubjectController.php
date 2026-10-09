@@ -11,8 +11,8 @@ use App\Support\Resources;
 use Illuminate\Http\Request;
 
 /**
- * The subjects (courses) offered each term. The Registrar maintains them. When a student enrolls, they are enrolled in the
- * subjects offered to their college: subjects without a department are offered to every college.
+ * The subjects (courses) offered each term. Department staff maintain their own catalog. When a student enrolls, they are enrolled in the
+ * subjects offered to their college: Assignments are scoped by department, program, year, semester and academic year.
  */
 class SubjectController extends ApiController
 {
@@ -21,14 +21,14 @@ class SubjectController extends ApiController
         return [
             'code' => $s->subject_code, 'name' => $s->name, 'units' => $s->units, 'schedule' => $s->schedule ?? '',
             'departmentId' => $s->department_id, 'department' => $s->department_id ? Resources::deptCode($s->department_id) : 'All colleges',
-            'program' => $s->program ?? '',
+            'program' => $s->program ?? '', 'yearLevel'=>$s->year_level, 'sharedYearLevels'=>$s->shared_year_levels ?? [], 'semester'=>$s->semester, 'academicYear'=>$s->academic_year,
             'enrolled' => (int) ($counts[$s->subject_code] ?? 0),
         ];
     }
 
-    private function counts(): array
+    private function counts(?int $departmentId = null): array
     {
-        return EnrollmentSubject::selectRaw('subject_code, COUNT(*) AS total')->groupBy('subject_code')->pluck('total', 'subject_code')->all();
+        return EnrollmentSubject::when($departmentId, fn ($q) => $q->whereIn('enrollment_id', \App\Models\Enrollment::whereIn('student_id', \App\Models\User::where('department_id',$departmentId)->select('user_id'))->select('enrollment_id')))->selectRaw('subject_code, COUNT(*) AS total')->groupBy('subject_code')->pluck('total', 'subject_code')->all();
     }
 
     /** Validates the form; returns the cleaned values. $existing is the subject being edited (its code cannot change). */
@@ -76,38 +76,56 @@ class SubjectController extends ApiController
         }
         if ($program !== '' && $dept) {
             $department = Department::find($dept);
-            $known = collect(config('academic_programs.'.strtoupper($department?->code ?? ''), []))
-                ->merge(\App\Models\StudentProfile::whereIn('user_id', \App\Models\User::where('department_id', $dept)->select('user_id'))->pluck('program'))
-                ->merge(Subject::where('department_id', $dept)->whereNotNull('program')->pluck('program'));
+            $known = \App\Models\AcademicProgram::where('department_id',$dept)->pluck('name');
             if (! $known->contains($program)) {
                 $e['program'] = 'Select a program under the chosen department.';
             }
+        }
+        $assignment=validator($in,[
+            'yearLevel'=>'required|integer|between:1,5', 'semester'=>'required|in:First Semester,Second Semester',
+            'academicYear'=>['sometimes','nullable','regex:/^\d{4}-\d{4}$/'], 'sharedYearLevels'=>'sometimes|array',
+            'sharedYearLevels.*'=>'integer|between:1,5|distinct',
+        ])->validate();
+        $academicYear = array_key_exists('academicYear', $in) ? ($assignment['academicYear'] ?? null) : ($existing ? $existing->academic_year : (\App\Support\Rules::termParts(\App\Support\Rules::currentTerm())[0] ?? null));
+        if ($academicYear && (int) substr($academicYear, 5) !== (int) substr($academicYear, 0, 4) + 1) {
+            $e['academicYear'] = 'Use consecutive years, for example 2026-2027.';
+        }
+        if (! $dept || $program === '') {
+            $e['program'] = 'Select a program belonging to your department.';
         }
         if ($e) {
             throw new ApiError('Please correct the highlighted fields.', 422, $e);
         }
 
-        return ['code' => $code, 'name' => $name, 'units' => (int) $units, 'schedule' => $schedule === '' ? null : $schedule, 'department_id' => $dept, 'program' => $program === '' ? null : $program];
+        return ['code' => $code, 'name' => $name, 'units' => (int) $units, 'schedule' => $schedule === '' ? null : $schedule, 'department_id' => $dept, 'program' => $program === '' ? null : $program, 'year_level'=>(int)$assignment['yearLevel'], 'semester'=>$assignment['semester'], 'academic_year'=>$academicYear, 'shared_year_levels'=>array_values(array_map('intval',$assignment['sharedYearLevels'] ?? []))];
     }
 
     // GET /api/subjects
     public function index(Request $request): \Illuminate\Support\Collection
     {
-        $this->need($request, 'enrollment.manage');
-        $counts = $this->counts();
+        $actor = $this->need($request, 'subjects.manage');
+        if ($actor->role->key !== 'department' || ! $actor->department_id) throw new ApiError('Only assigned department staff can manage subjects.', 403);
+        $counts = $this->counts($actor->department_id);
 
         return Subject::query()
+            ->where('department_id', $actor->department_id)
             ->when($request->query('department_id'), fn ($q, $dept) => $q->where(fn ($sub) => $sub->whereNull('department_id')->orWhere('department_id', $dept)))
             ->when($request->query('program'), fn ($q, $program) => $q->where(fn ($sub) => $sub->whereNull('program')->orWhere('program', $program)))
+            ->when($request->query('year_level'),fn ($q,$y)=>$q->where(fn ($sub)=>$sub->where('year_level',$y)->orWhereJsonContains('shared_year_levels',(int)$y)))
+            ->when($request->query('semester'),fn ($q,$v)=>$q->where('semester',$v))
+            ->when($request->query('academic_year'),fn ($q,$v)=>$q->where(fn ($sub)=>$sub->whereNull('academic_year')->orWhere('academic_year',$v)))
             ->orderBy('subject_code')->get()->map(fn ($s) => $this->resource($s, $counts))->values();
     }
 
     // POST /api/subjects   { code, name, units, schedule?, departmentId? }
     public function store(Request $request): array
     {
-        $this->need($request, 'enrollment.manage');
-        $v = $this->clean($request->all());
-        $subject = Subject::create(['subject_code' => $v['code'], 'name' => $v['name'], 'units' => $v['units'], 'schedule' => $v['schedule'], 'department_id' => $v['department_id'], 'program' => $v['program']]);
+        $actor = $this->need($request, 'subjects.manage');
+        if ($actor->role->key !== 'department' || ! $actor->department_id) throw new ApiError('Only assigned department staff can manage subjects.', 403);
+        if ($request->filled('departmentId') && (int)$request->input('departmentId') !== (int)$actor->department_id) { throw new ApiError('Outside your assigned department.',403); }
+        $v = $this->clean(array_merge($request->all(), ['departmentId'=>$actor->department_id]));
+        if ((int) $v['department_id'] !== (int) $actor->department_id || ! $v['program']) throw new ApiError('Choose your department and a specific program.', 403);
+        $subject = Subject::create(['subject_code' => $v['code'], 'name' => $v['name'], 'units' => $v['units'], 'schedule' => $v['schedule'], 'department_id' => $v['department_id'], 'program' => $v['program'], 'year_level'=>$v['year_level'], 'shared_year_levels'=>$v['shared_year_levels'], 'semester'=>$v['semester'], 'academic_year'=>$v['academic_year']]);
         $this->log($request, "Added subject {$subject->subject_code} ({$subject->name})", 'subject', $subject->subject_code);
 
         \App\Support\AcademicEnrollment::syncAll();
@@ -117,21 +135,27 @@ class SubjectController extends ApiController
     // PATCH /api/subjects/{code}   Changes apply to students who enroll from now on; existing enrollment snapshots and grades keep their own copy.
     public function update(Request $request, string $code): array
     {
-        $this->need($request, 'enrollment.manage');
+        $actor = $this->need($request, 'subjects.manage');
+        if ($actor->role->key !== 'department' || ! $actor->department_id) throw new ApiError('Only assigned department staff can manage subjects.', 403);
         $subject = Subject::find($code) ?? throw new ApiError('Subject not found.', 404);
-        $v = $this->clean($request->all(), $subject);
-        $subject->update(['name' => $v['name'], 'units' => $v['units'], 'schedule' => $v['schedule'], 'department_id' => $v['department_id'], 'program' => $v['program']]);
+        if ((int) $subject->department_id !== (int) $actor->department_id) throw new ApiError('This subject is outside your department or is shared and read-only.', 403);
+        if ($request->filled('departmentId') && (int)$request->input('departmentId') !== (int)$actor->department_id) { throw new ApiError('Outside your assigned department.',403); }
+        $v = $this->clean(array_merge($request->all(), ['departmentId'=>$actor->department_id]), $subject);
+        if ((int) $v['department_id'] !== (int) $actor->department_id || ! $v['program']) throw new ApiError('Choose your department and a specific program.', 403);
+        $subject->update(['name' => $v['name'], 'units' => $v['units'], 'schedule' => $v['schedule'], 'department_id' => $v['department_id'], 'program' => $v['program'], 'year_level'=>$v['year_level'], 'shared_year_levels'=>$v['shared_year_levels'], 'semester'=>$v['semester'], 'academic_year'=>$v['academic_year']]);
         $this->log($request, "Updated subject {$subject->subject_code}", 'subject', $subject->subject_code);
 
         \App\Support\AcademicEnrollment::syncAll();
-        return $this->resource($subject->fresh(), $this->counts());
+        return $this->resource($subject->fresh(), $this->counts($actor->department_id));
     }
 
     // DELETE /api/subjects/{code}   Only a subject nobody enrolled in can be deleted.
     public function destroy(Request $request, string $code): array
     {
-        $this->need($request, 'enrollment.manage');
+        $actor = $this->need($request, 'subjects.manage');
+        if ($actor->role->key !== 'department' || ! $actor->department_id) throw new ApiError('Only assigned department staff can manage subjects.', 403);
         $subject = Subject::find($code) ?? throw new ApiError('Subject not found.', 404);
+        if ((int) $subject->department_id !== (int) $actor->department_id) throw new ApiError('This subject is outside your department or is shared and read-only.', 403);
         if (EnrollmentSubject::where('subject_code', $code)->exists() || Grade::where('course_code', $code)->exists()) {
             throw new ApiError('This subject is already part of student enrollment or grade records, so it cannot be deleted.');
         }

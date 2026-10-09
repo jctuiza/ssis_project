@@ -112,6 +112,17 @@ class AccountController extends ApiController
         return Rules::feedFor($request->user(), 20);
     }
 
+    public function deleteNotifications(Request $request)
+    {
+        $user = $request->user();
+        foreach (Rules::visibleNotifications($user)->pluck('notification_id')->chunk(500) as $ids) {
+            \Illuminate\Support\Facades\DB::table('notification_dismissals')->insertOrIgnore($ids->map(fn ($id) => [
+                'notification_id'=>$id,'user_id'=>$user->user_id,'dismissed_at'=>now(),
+            ])->all());
+        }
+        return ['ok'=>true];
+    }
+
     // POST /api/notifications/read
     public function markRead(Request $request)
     {

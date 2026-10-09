@@ -16,7 +16,7 @@ use App\Models\User;
 /** Turns database rows into the JSON shapes the React pages consume (names, programs, balances are joined here). */
 class Resources
 {
-    public const PASSING_PERCENT = 75;
+    public const PASSING_PERCENT = 60;
 
     private const SCALE = [[97, 1.0], [94, 1.25], [91, 1.5], [88, 1.75], [85, 2.0], [82, 2.25], [79, 2.5], [76, 2.75], [75, 3.0]];
 
@@ -65,6 +65,11 @@ class Resources
         return round(($g->prelim + $g->midterm + $g->finals) / 3, 2);
     }
 
+    public static function gradeStatus(?float $final): string
+    {
+        return $final === null ? 'Incomplete' : ($final >= self::PASSING_PERCENT ? 'Passed' : 'Failed');
+    }
+
     public static function user(User $u): array
     {
         $u->loadMissing('role');
@@ -79,6 +84,7 @@ class Resources
         $p = StudentProfile::where('user_id', $u->user_id)->first();
 
         return $base + [
+            'enrolledOn' => $p?->enrolled_on?->toIso8601String(),
             'program' => $p?->program, 'yearLevel' => $p?->year_level, 'enrollmentStatus' => Rules::enrollmentStatusOf($u->user_id),
             'birthdate' => $p?->birthdate?->format('Y-m-d'), 'birthday' => Fmt::longDate($p?->birthdate), 'age' => Rules::ageOf($p?->birthdate),
             'address' => $p?->address, 'emergencyName' => $p?->emergency_name, 'emergencyContact' => $p?->emergency_contact,
@@ -88,7 +94,7 @@ class Resources
     /** The signed-in user, including the profile picture (kept out of lists because it is large). */
     public static function sessionUser(User $u): array
     {
-        return self::user($u) + ['photo' => $u->profile_photo];
+        return self::user($u) + ['photo' => $u->profile_photo, 'clearanceOffices' => Rules::OFFICES];
     }
 
     public static function enrollment(Enrollment $e): array
@@ -97,8 +103,8 @@ class Resources
         $profile = StudentProfile::where('user_id', $e->student_id)->first();
 
         return [
-            'id' => $e->enrollment_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => $profile?->program ?? '',
-            'yearLevel' => $profile?->year_level, 'departmentId' => $s?->department_id, 'term' => $e->term, 'status' => $e->status === 'Enrolled' ? 'Enrolled' : 'Not Enrolled',
+            'id' => $e->enrollment_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => $e->program_snapshot ?? $profile?->program ?? '',
+            'yearLevel' => $e->year_level ? AcademicAssignments::label($e->year_level) : $profile?->year_level, 'departmentId' => $s?->department_id, 'term' => $e->term, 'status' => $e->status === 'Enrolled' ? 'Enrolled' : 'Not Enrolled',
             'subjects' => Rules::subjectCodesOf($e), 'units' => Rules::enrollmentUnits($e), 'submittedAt' => Fmt::date($e->submitted_at),
         ];
     }
@@ -112,7 +118,7 @@ class Resources
             'id' => $g->grade_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => self::programOf($g->student_id), 'departmentId' => $s?->department_id,
             'code' => $g->course_code, 'subject' => $g->description, 'units' => $g->units, 'academicYear' => $g->academic_year,
             'semester' => $g->semester, 'term' => "A.Y. {$g->academic_year}, {$g->semester}", 'prelim' => $g->prelim, 'midterm' => $g->midterm,
-            'finals' => $g->finals, 'finalGrade' => $final, 'gradePoint' => self::toGradePoint($final),
+            'finals' => $g->finals, 'finalGrade' => $final, 'status' => self::gradeStatus($final), 'gradePoint' => self::toGradePoint($final),
         ];
     }
 

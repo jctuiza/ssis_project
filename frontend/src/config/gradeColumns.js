@@ -1,3 +1,5 @@
+import { createElement } from 'react'
+import StatusBadge from '../components/ui/StatusBadge'
 const show = (value) => value == null ? '--' : Number(value).toFixed(2)
 
 export const GRADE_COLUMNS = [
@@ -9,5 +11,6 @@ export const GRADE_COLUMNS = [
   { key: 'prelim', label: 'Prelim', render: (g) => show(g.prelim) },
   { key: 'midterm', label: 'Midterm', render: (g) => show(g.midterm) },
   { key: 'finals', label: 'Finals', render: (g) => show(g.finals) },
-  { key: 'finalGrade', label: 'Final', sortable: true, render: (g) => (g.finalGrade == null ? '--' : `${g.finalGrade.toFixed(2)} (${g.gradePoint.toFixed(2)})`) },
+  { key: 'finalGrade', label: 'Final', sortable: true, render: (g) => (g.finalGrade == null ? '--' : Number(g.finalGrade).toFixed(2)) },
+  { key: 'status', label: 'Status', render: g => createElement(StatusBadge, {status: g.status ?? 'Incomplete'}) },
 ]

@@ -17,6 +17,7 @@ class StudentProfile extends Model
     {
         return [
             'birthdate' => 'date',
+            'enrolled_on' => 'datetime',
         ];
     }
 }

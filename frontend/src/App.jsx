@@ -7,6 +7,7 @@ import {
   useNavigate,
   useParams,
 } from 'react-router-dom'
+import OnlineEnrollment from './pages/auth/OnlineEnrollment'
 import Login from './pages/auth/Login'
 import DashboardLayout from './layouts/DashboardLayout'
 import AppRoutes from './routes/AppRoutes'
@@ -224,6 +225,7 @@ export default function App() {
   return (
     <RouteErrorBoundary>
       <Routes>
+          <Route path="/online-enrollment" element={<OnlineEnrollment />} />
         <Route
           path="/"
           element={<Navigate to={home} replace />}

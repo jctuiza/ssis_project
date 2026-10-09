@@ -10,7 +10,8 @@ const styles = {
   Submitted: slate, 'Under Review': violet, Approved: violet, 'Pending Payment': amber, 'Payment Recorded': sky,
   Processing: violet, 'Ready for Release': sky, Completed: green, Rejected: rose,
   // shared
-  Pending: amber,
+  Passed: green, Failed: rose, Incomplete: amber,
+  Pending: amber, Accepted: green, Declined: rose,
   Cleared: green, 'On Hold': rose, Paid: green, 'Fully Paid': green, 'Partially Paid': amber, Unpaid: rose, Outstanding: rose,
   Cancelled: slate, Waived: slate,
   Enrolled: green, 'Not Enrolled': slate, Active: green, Inactive: slate,

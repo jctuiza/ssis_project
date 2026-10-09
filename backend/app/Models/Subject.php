@@ -16,6 +16,6 @@ class Subject extends Model
 
     protected function casts(): array
     {
-        return ['units' => 'integer', 'department_id' => 'integer'];
+        return ['units' => 'integer', 'department_id' => 'integer', 'year_level'=>'integer', 'shared_year_levels'=>'array'];
     }
 }

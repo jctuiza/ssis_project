@@ -1,39 +1,5 @@
-// Department codes must match the codes returned by your departments API.
-// Each BSBA major appears as a separate Program/Course option.
-
-const BUSINESS_PROGRAMS = [
-  'Bachelor of Science in Accountancy (BSA)',
-  'BSBA major in Financial Management',
-  'BSBA major in Marketing Management',
-  'BSBA major in Human Resource Development Management',
-]
-
-export const PROGRAMS_BY_DEPARTMENT = {
-  CCS: [
-    'BS Information Technology',
-    'BS Computer Science',
-  ],
-
-  CBAA: BUSINESS_PROGRAMS,
-  CBA: BUSINESS_PROGRAMS,
-
-  CAS: [
-    'Bachelor of Science in Psychology (BSPsy)',
-    'Bachelor of Arts in Communication (AB Comm)',
-  ],
-
-  COE: [
-    'Bachelor of Science in Computer Engineering (BSCpE)',
-    'Bachelor of Science in Electronics Engineering (BSECE)',
-    'Bachelor of Science in Industrial Engineering (BSIE)',
-    'Bachelor of Science in Civil Engineering (BSCE)',
-    'Bachelor of Science in Electrical Engineering (BSEE)',
-    'Bachelor of Science in Mechanical Engineering (BSME)',
-  ],
-}
-
 // Get only the programs associated with the selected department.
-// If the API supplies department.programs, use that list first.
+// Program choices come exclusively from the database-backed departments API.
 // Supported entries:
 // - 'Program name'
 // - { name: 'Program name' }
@@ -48,13 +14,7 @@ export function programsForDepartment(departments, departmentId) {
 
   if (!department) return []
 
-  const departmentCode = String(department.code ?? '')
-    .trim()
-    .toUpperCase()
-
-  const catalog = Array.isArray(department.programs)
-    ? department.programs
-    : PROGRAMS_BY_DEPARTMENT[departmentCode] ?? []
+  const catalog = Array.isArray(department.programs) ? department.programs : []
 
   return catalog
     .map((program) => {

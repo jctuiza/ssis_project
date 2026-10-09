@@ -182,13 +182,14 @@ class AdminController extends ApiController
     public function departments(Request $request)
     {
         $user = $request->user();
-        if (! $this->can($user, 'departments.view', 'users.manage', 'students.manage', 'enrollment.manage', 'grades.manage')) {
+        if (! $this->can($user, 'departments.view', 'users.manage', 'students.manage', 'enrollment.manage', 'grades.manage', 'subjects.manage')) {
             throw new ApiError('You do not have permission to do that.', 403);
         }
         $studentRole = Role::where('key', 'student')->value('role_id');
 
-        return Department::orderBy('department_id')->get()->map(fn ($d) => [
-            'programs' => collect(config('academic_programs.'.strtoupper($d->code), []))->merge(\App\Models\StudentProfile::whereIn('user_id', User::where('department_id', $d->department_id)->select('user_id'))->pluck('program'))->merge(\App\Models\Subject::where('department_id', $d->department_id)->whereNotNull('program')->pluck('program'))->filter()->unique()->values()->all(),
+        return Department::when($user->role->key === 'department', fn ($q) => $q->where('department_id', $user->department_id ?: -1))->orderBy('department_id')->get()->map(fn ($d) => [
+            'programDetails'=>\App\Models\AcademicProgram::where('department_id',$d->department_id)->orderBy('name')->get(['id','name','duration_years'])->toArray(),
+            'programs' => \App\Models\AcademicProgram::where('department_id',$d->department_id)->orderBy('name')->pluck('name')->all(),
             'id' => $d->department_id, 'code' => $d->code, 'name' => $d->name, 'head' => $d->head_name,
             'students' => User::where('department_id', $d->department_id)->where('role_id', $studentRole)->count(),
             'staff' => User::where('department_id', $d->department_id)->where('role_id', '!=', $studentRole)->count(),
@@ -198,9 +199,10 @@ class AdminController extends ApiController
     // GET /api/activity-logs
     public function logs(Request $request)
     {
-        $this->need($request, 'logs.view');
+        $actor = $this->need($request, 'logs.view');
+        if ($actor->role->key !== 'admin') throw new ApiError('Only administrators can access activity logs.', 403);
 
-        return ActivityLog::orderByDesc('created_at')->orderByDesc('activity_log_id')->limit(500)->get()->map(fn ($l) => Resources::log($l));
+        return ActivityLog::with('actor')->whereIn('entity_type', ['user','role','settings','student','enrollment','admission','security'])->whereNotIn('action', ['Updated own profile','Changed own password','Updated own profile picture','Removed own profile picture'])->orderByDesc('created_at')->orderByDesc('activity_log_id')->limit(500)->get()->filter(fn ($l) => Rules::auditable($l->actor, $l->action, $l->entity_type))->map(fn ($l) => Resources::log($l))->values();
     }
 
     // ---- settings ---------------------------------------------------------------------------------------
@@ -232,6 +234,7 @@ class AdminController extends ApiController
         if (! Rules::termParts($term)) {
             throw new ApiError('Select a term containing an academic year and First or Second Semester.', 422, ['currentTerm' => 'For example: 1st Semester, A.Y. 2026–2027']);
         }
+        $term = Rules::normalizedTerm($term);
         // Fees: only amounts between 0 and 1,000,000; they apply to assessments created from now on.
         $fees = [];
         foreach (['tuitionPerUnit' => 'tuition_per_unit', 'miscFees' => 'misc_fees'] as $key => $column) {
@@ -245,6 +248,7 @@ class AdminController extends ApiController
             $fees[$column] = round((float) $value, 2);
         }
         $settings = Rules::settings();
+        if (Rules::termParts($term)[0] !== Rules::termParts($settings->current_term)[0]) { throw new ApiError('Use Preview and activate academic year to change the academic year.',422,['currentTerm'=>'Activate the new year through the promotion panel.']); }
         $settings->update($fees + [
             'system_name' => mb_substr($name, 0, 150), 'current_term' => mb_substr($term, 0, 60),
             'enrollment_open' => $request->boolean('enrollmentOpen'), 'document_requests_open' => $request->boolean('documentRequestsOpen'),

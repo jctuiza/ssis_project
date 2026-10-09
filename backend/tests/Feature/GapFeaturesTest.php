@@ -24,15 +24,19 @@ class GapFeaturesTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
-        foreach (['admin', 'registrar', 'student', 'cashier'] as $key) {
+        foreach (['admin', 'registrar', 'student', 'cashier', 'department'] as $key) {
             Role::create(['key' => $key, 'label' => ucfirst($key)]);
         }
-        foreach (['enrollment.manage', 'settings.manage', 'grades.manage', 'payments.manage'] as $key) {
-            Permission::create(['key' => $key, 'label' => $key, 'group' => 'Tests']);
+        foreach (['enrollment.manage', 'settings.manage', 'grades.manage', 'payments.manage', 'subjects.manage'] as $key) {
+            Permission::firstOrCreate(['key' => $key], ['label' => $key, 'group' => 'Tests']);
         }
-        Role::where('key', 'registrar')->first()->permissions()->sync(Permission::whereIn('key', ['enrollment.manage', 'grades.manage'])->pluck('permission_id'));
+        Role::where('key', 'registrar')->first()->permissions()->sync(Permission::whereIn('key', ['enrollment.manage'])->pluck('permission_id'));
         Role::where('key', 'admin')->first()->permissions()->sync(Permission::where('key', 'settings.manage')->pluck('permission_id'));
         Role::where('key', 'cashier')->first()->permissions()->sync(Permission::where('key', 'payments.manage')->pluck('permission_id'));
+        Role::where('key','department')->first()->permissions()->sync(Permission::whereIn('key',['grades.manage','subjects.manage'])->pluck('permission_id'));
+        \App\Models\Department::create(['code'=>'CCS','name'=>'College of Computer Studies']);
+        (new \Database\Seeders\AcademicProgramSeeder)->run();
+        \App\Models\AcademicProgram::query()->update(['duration_years'=>4,'promotion_pass_mark'=>75]);
         SystemSetting::create(['system_name' => 'SSIS', 'current_term' => '1st Semester, A.Y. 2026–2027']);
     }
 
@@ -41,13 +45,13 @@ class GapFeaturesTest extends TestCase
         return User::create([
             'username' => $username, 'name' => $username, 'email' => $username.'@example.test',
             'password' => 'test-password', 'role_id' => Role::where('key', $role)->value('role_id'),
-            'must_change_password' => false,
+            'must_change_password' => false, 'department_id'=>\App\Models\Department::where('code','CCS')->value('department_id'),
         ]);
     }
 
     private function enrolled(User $student): Enrollment
     {
-        $subject = Subject::create(['subject_code' => 'IT101', 'name' => 'Computing', 'units' => 3]);
+        $subject = Subject::create(['subject_code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'department_id'=>1, 'program'=>'BS Information Technology','year_level'=>1,'semester'=>'First Semester','curriculum'=>'Current']);
         $enrollment = Enrollment::create(['student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Enrolled']);
         EnrollmentSubject::create([
             'enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code,
@@ -56,12 +60,12 @@ class GapFeaturesTest extends TestCase
         return $enrollment;
     }
 
-    public function test_subject_crud_uses_the_existing_registrar_permission(): void
+    public function test_subject_crud_is_scoped_to_department_permission(): void
     {
-        Sanctum::actingAs($this->user('registrar', 'registrar-test'));
-        $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 3])->assertOk()->assertJsonPath('code', 'IT101');
+        Sanctum::actingAs($this->user('department', 'department-test'));
+        $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'departmentId'=>1, 'program'=>'BS Information Technology','yearLevel'=>1,'semester'=>'First Semester','curriculum'=>'Current'])->assertOk()->assertJsonPath('code', 'IT101');
         $this->getJson('/api/subjects')->assertOk()->assertJsonCount(1);
-        $this->patchJson('/api/subjects/IT101', ['name' => 'Web Development', 'units' => 4])->assertOk()->assertJsonPath('name', 'Web Development');
+        $this->patchJson('/api/subjects/IT101', ['name' => 'Web Development', 'units' => 4, 'departmentId'=>1, 'program'=>'BS Information Technology','yearLevel'=>1,'semester'=>'First Semester','curriculum'=>'Current'])->assertOk()->assertJsonPath('name', 'Web Development');
         $this->deleteJson('/api/subjects/IT101')->assertOk();
         $this->assertDatabaseMissing('subjects', ['subject_code' => 'IT101']);
     }
@@ -75,8 +79,8 @@ class GapFeaturesTest extends TestCase
 
     public function test_invalid_subject_department_is_rejected(): void
     {
-        Sanctum::actingAs($this->user('registrar', 'registrar-test'));
-        $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'departmentId' => 'invalid'])->assertStatus(422);
+        Sanctum::actingAs($this->user('department', 'department-test'));
+        $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'departmentId' => 'invalid'])->assertStatus(403);
         $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 1.5])->assertStatus(422);
     }
 
@@ -116,11 +120,11 @@ class GapFeaturesTest extends TestCase
     {
         $student = $this->user('student', 'student-test');
         $enrollment = $this->enrolled($student);
-        Sanctum::actingAs($this->user('registrar', 'registrar-test'));
-        $this->patchJson('/api/subjects/IT101', ['name' => 'New catalog name', 'units' => 5])->assertOk();
+        Sanctum::actingAs($this->user('department', 'department-test'));
+        $this->patchJson('/api/subjects/IT101', ['name' => 'New catalog name', 'units' => 5, 'departmentId'=>1, 'program'=>'BS Information Technology','yearLevel'=>1,'semester'=>'First Semester','curriculum'=>'Current'])->assertOk();
         $this->assertSame(3, Rules::enrollmentUnits($enrollment));
         Rules::createGradeRows($student);
-        $this->assertDatabaseHas('grades', ['course_code' => 'IT101', 'description' => 'Computing', 'units' => 3]);
+        $this->assertDatabaseHas('grades', ['course_code'=>'IT101','description'=>'Computing','units'=>3]);
         $this->deleteJson('/api/subjects/IT101')->assertStatus(422);
     }
 

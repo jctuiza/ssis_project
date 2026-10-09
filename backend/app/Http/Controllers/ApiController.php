@@ -17,6 +17,7 @@ abstract class ApiController extends Controller
             throw new ApiError('You do not have permission to do that.', 403);
         }
 
+        if ($user->role->key === 'department' && ! $user->department_id) throw new ApiError('Your account has no department assigned.', 403);
         return $user;
     }
 
@@ -49,6 +50,7 @@ abstract class ApiController extends Controller
             throw new ApiError('Student not found.', 404);
         }
 
+        if ($user->role->key === 'department' && ! $user->department_id) throw new ApiError('Your account has no department assigned.', 403);
         return $user;
     }
 
@@ -65,7 +67,9 @@ abstract class ApiController extends Controller
         }
         $this->need($request, ...$permissions);
 
-        return $this->studentByUsername($username);
+        $student = $this->studentByUsername($username);
+        if (! $this->inScope($me, $student->user_id)) throw new ApiError('This record belongs to another department.', 403);
+        return $student;
     }
 
     protected function log(Request $request, string $action, ?string $type = null, $id = null): void

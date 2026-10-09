@@ -2,6 +2,7 @@
 // The same keys are checked in the UI (menus, pages, buttons) and again in the services (the "backend").
 // With Laravel these map to Gates / Policies (or spatie/laravel-permission) on a roles table.
 export const PERMISSIONS = [
+  {key:'subjects.manage',label:'Manage department subjects',group:'Subjects'},
   { key: 'students.view', label: 'View student records', group: 'Students' },
   { key: 'students.manage', label: 'Register new students and edit student information', group: 'Students' },
   { key: 'enrollment.manage', label: 'Review enrollment requests', group: 'Enrollment' },
@@ -30,9 +31,9 @@ export const PERMISSION_GROUPS = [...new Set(PERMISSIONS.map((p) => p.group))]
 export const SYSTEM_ROLE_PERMISSIONS = {
   student: [],
   admin: ['users.manage', 'roles.manage', 'departments.view', 'announcements.manage', 'transactions.view', 'reports.view', 'logs.view', 'settings.manage'],
-  registrar: ['students.view', 'students.manage', 'enrollment.manage', 'grades.manage', 'clearance.registrar', 'documents.process', 'records.view', 'reports.view'],
+  registrar: ['students.view', 'students.manage', 'enrollment.manage', 'clearance.registrar', 'documents.process', 'records.view', 'reports.view'],
   cashier: ['payments.manage', 'reports.view'],
-  department: ['students.view', 'clearance.department', 'documents.review', 'records.view', 'reports.view'],
+  department: ['subjects.manage', 'grades.manage', 'students.view', 'clearance.department', 'documents.review', 'records.view', 'reports.view'],
 }
 
 // can(user, 'a') or can(user, 'a', 'b') -> true when the user's role has any of them. `user.permissions` comes from login.

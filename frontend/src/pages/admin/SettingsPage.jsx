@@ -1,3 +1,4 @@
+import AcademicYearPromotion from '../../components/forms/AcademicYearPromotion'
 import Select from '../../components/forms/Select'
 import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
 import { useState } from 'react'
@@ -19,13 +20,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [values, setValues] = useState(null)
-  const form = values ?? data
+  const waiting = loading && data == null
+  const form = values ?? data ?? { systemName: '', currentTerm: '', academicTerms: [], tuitionPerUnit: '', miscFees: '', enrollmentOpen: false, documentRequestsOpen: false, emailNotifications: false, maintenanceMode: false }
   const set = (key) => (value) => {
     setValues({ ...form, [key]: value })
     setErrors((previous) => ({ ...previous, [key]: undefined }))
   }
   const save = async () => {
-    if (saving || !form) return
+    if (saving || !data) return
     const invalid = {}
     for (const key of ['tuitionPerUnit', 'miscFees']) {
       const raw = form[key]
@@ -49,11 +51,13 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader eyebrow="Settings" title="Settings" description="System-wide options for the student services portal. Closing enrollment or document requests takes effect for students immediately." />
-      <AsyncView loading={loading} error={error} hasData={data != null} skeleton={<ScreenSkeleton kind="settings" />}>
+      <>
+      {error && <p role="alert" className="text-rose-500">{error.message}</p>}
         {form && (
           <Card>
+            <fieldset disabled={waiting || !data} aria-busy={waiting}>
             <div className="grid gap-4 border-b border-slate-100 pb-5 dark:border-white/10 sm:grid-cols-2">
-              <Input label="System name" error={errors.systemName} value={form.systemName} onChange={(e) => set('systemName')(e.target.value)} />
+              <Input label="System name" placeholder={waiting ? 'Loading…' : undefined} error={errors.systemName} value={form.systemName} onChange={(e) => set('systemName')(e.target.value)} />
               <Select label="Select an existing academic term" placeholder="Choose a previous or current term" value={(form.academicTerms ?? []).includes(form.currentTerm) ? form.currentTerm : ''} options={form.academicTerms ?? []} onChange={event => { if (event.target.value) set('currentTerm')(event.target.value) }} />
               <Input label="Current academic term" error={errors.currentTerm} value={form.currentTerm} onChange={(e) => set('currentTerm')(e.target.value)} />
               <Input label="Tuition per unit (₱)" type="number" min="0" max="1000000" step="0.01" value={form.tuitionPerUnit ?? ''} error={errors.tuitionPerUnit} onChange={(e) => set('tuitionPerUnit')(e.target.value)} />
@@ -68,9 +72,11 @@ export default function SettingsPage() {
             <div className="mt-5 flex justify-end">
               <Button loading={saving} onClick={save}>Save settings</Button>
             </div>
+            </fieldset>
           </Card>
         )}
-      </AsyncView>
+      </>
+      <AcademicYearPromotion />
     </div>
   )
 }

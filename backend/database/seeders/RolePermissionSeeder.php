@@ -28,7 +28,6 @@ class RolePermissionSeeder extends Seeder
                 'students.view',
                 'students.manage',
                 'enrollment.manage',
-                'grades.manage',
                 'clearance.registrar',
                 'documents.process',
                 'records.view',
@@ -41,6 +40,8 @@ class RolePermissionSeeder extends Seeder
             ],
 
             'department' => [
+                'grades.manage',
+                'subjects.manage',
                 'students.view',
                 'clearance.department',
                 'documents.review',
@@ -51,6 +52,8 @@ class RolePermissionSeeder extends Seeder
             'student' => [],
         ];
 
+        $reg = DB::table('roles')->where('key','registrar')->value('role_id');
+        if ($reg) DB::table('role_permissions')->where('role_id',$reg)->whereIn('permission_id', DB::table('permissions')->whereIn('key',['grades.manage','subjects.manage'])->pluck('permission_id'))->delete();
         foreach ($permissions as $roleKey => $permissionKeys) {
             $role = DB::table('roles')
                 ->where('key', $roleKey)

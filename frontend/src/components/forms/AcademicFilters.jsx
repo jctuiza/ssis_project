@@ -1,11 +1,13 @@
+import { useSession } from '../../context/session'
 import Select from './Select'
 import Card from '../ui/Card'
 
 export default function AcademicFilters({ filters, subjects, children }) {
+  const { user } = useSession()
   return <Card><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-    <Select label="Department" placeholder="Select department" value={filters.departmentId}
-      disabled={filters.departments.loading} options={(filters.departments.data ?? []).map(d => ({ value: d.id, label: `${d.code} – ${d.name}` }))}
-      onChange={event => filters.selectDepartment(event.target.value)} />
+    {user?.role !== 'department' && <Select label="Department" placeholder="Select department" value={filters.departmentId}
+      disabled={filters.departments.loading || Boolean(user?.departmentId)} options={(filters.departments.data ?? []).map(d => ({ value: d.id, label: `${d.code} – ${d.name}` }))}
+      onChange={event => filters.selectDepartment(event.target.value)} />}
     <Select label="Course / Program" placeholder="Select program" value={filters.program}
       disabled={!filters.departmentId} options={filters.programs} onChange={event => filters.selectProgram(event.target.value)} />
     {subjects && <Select label="Subject" placeholder="Select subject" value={filters.subject}

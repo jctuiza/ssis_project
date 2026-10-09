@@ -1,3 +1,4 @@
+import { useDataLoading } from '../../context/DataLoading'
 import { useState } from 'react'
 import Skeleton from '../loading/Skeleton'
 import { ArrowUpDown } from 'lucide-react'
@@ -9,6 +10,8 @@ export default function DataTable({
   columns, rows = [], loading = false, loadingRowCount, rowKey = 'id', searchKeys = [], searchPlaceholder = 'Search…', filter,
   pageSize = 8, actions, empty = 'No records found.', toolbar,
 }) {
+  const contextLoading = useDataLoading()
+  loading ||= contextLoading
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('All')
   const [sort, setSort] = useState({ key: null, dir: 'asc' })

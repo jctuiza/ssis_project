@@ -7,3 +7,5 @@ export const getNotifications = () => api.get('/notifications')
 export const markNotificationsRead = () => api.post('/notifications/read')
 
 
+
+export const deleteNotifications = () => api.delete('/notifications')

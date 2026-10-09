@@ -92,6 +92,7 @@ class StudentController extends ApiController
             throw new ApiError('Choose a department.', 422, ['departmentId' => 'Select a department.']);
         }
 
+        if (! \App\Models\AcademicProgram::where('department_id',$departmentId)->where('name',$v['program'])->exists()) throw new ApiError('Select a program under this department.',422,['program'=>'Select a valid program.']);
         return $v + ['_department' => $departmentId];
     }
 
@@ -103,6 +104,7 @@ class StudentController extends ApiController
         $temporary = $this->temporaryPassword();
 
         $student = DB::transaction(function () use ($v, $actor, $temporary) {
+            \App\Models\SystemSetting::query()->lockForUpdate()->firstOrFail();
             $username = Rules::nextStudentNumber();
             $student = User::create([
                 'username' => $username, 'email' => $v['email'], 'password' => $temporary, 'name' => $v['name'],
@@ -115,10 +117,10 @@ class StudentController extends ApiController
                 'signature' => $v['name'],
             ]);
             $enrollment = Enrollment::create([
-                'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Not Enrolled', 'submitted_at' => now(),
+                'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Not Enrolled', ...\App\Support\AcademicAssignments::snapshot($student), 'submitted_at' => now(),
                 'reviewed_by' => $actor->user_id, 'reviewed_at' => now(), 'remarks' => 'Registered by the Registrar.',
             ]);
-            foreach (Rules::offeredSubjects($v['_department'], $v['program']) as $subject) {
+            foreach (Rules::offeredSubjects($v['_department'], $v['program'], \App\Support\AcademicAssignments::year($v['yearLevel'])) as $subject) {
                 EnrollmentSubject::create(['enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code, 'subject_name' => $subject->name, 'units' => $subject->units, 'schedule' => $subject->schedule]);
             }
             foreach (Rules::OFFICES as $office) {
@@ -155,7 +157,7 @@ class StudentController extends ApiController
                 'emergency_name' => $v['emergencyName'] ?? '', 'emergency_contact' => $v['emergencyContact'] ?? '', 'signature' => $v['name'],
             ]);
             \App\Support\AcademicEnrollment::prepare($student->fresh());
-            Rules::notify('student', 'The Registrar updated your student information.', $student->user_id, page: 'profile');
+
             Rules::logActivity($actor, "Updated student information of {$v['name']} ({$student->username})", 'student', $student->username);
         });
 

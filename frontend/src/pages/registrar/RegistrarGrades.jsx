@@ -28,7 +28,7 @@ export default function RegistrarGrades() {
   const defaultYear = settings.data?.currentTerm?.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-') ?? ''
   const selectedYear = year || defaultYear
   const selectedSemester = semester || (/2nd|Second/i.test(settings.data?.currentTerm ?? '') ? 'Second Semester' : 'First Semester')
-  const { data, loading, error } = useService(() => filters.ready && selectedYear ? gradeService.getAll({ department_id: filters.departmentId, program: filters.program, academic_year: selectedYear, semester: selectedSemester }) : Promise.resolve([]), [filters.departmentId, filters.program, selectedYear, selectedSemester], 'registrar:filtered-grades')
+  const { data, loading, error } = useService(() => filters.ready && selectedYear ? gradeService.getAll({ department_id: filters.departmentId, program: filters.program, academic_year: selectedYear, semester: selectedSemester, year_level: filters.yearLevel }) : Promise.resolve([]), [filters.departmentId, filters.program, selectedYear, selectedSemester, filters.yearLevel], 'registrar:filtered-grades')
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({ prelim: '', midterm: '', finals: '' })
   const [saving, setSaving] = useState(false)
@@ -51,7 +51,7 @@ export default function RegistrarGrades() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades" title="Grades" description="Encode and correct prelim, midterm and finals grades (0–100). Students see changes right away." />
-      <AcademicFilters filters={filters} />
+      <AcademicFilters filters={filters}><Select label="Year Level" placeholder="All recorded years" value={filters.yearLevel} options={filters.yearOptions} onChange={e=>filters.setYearLevel(e.target.value)} /></AcademicFilters>
       <Card><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Select label="Academic year" value={selectedYear} placeholder="Select academic year" options={[...new Set([defaultYear, ...(settings.data?.academicTerms ?? []).map(term => term.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-'))].filter(Boolean))]} onChange={event => setYear(event.target.value)} />
         <Select label="Semester" value={selectedSemester} options={SEMESTERS} onChange={event => setSemester(event.target.value)} />
@@ -62,7 +62,7 @@ export default function RegistrarGrades() {
             <DataTable
               columns={GRADE_COLUMNS}
               rows={data}
-              empty={filters.ready ? "No enrolled students match these filters." : "Select a department and program to view grade records."}
+              empty={filters.ready ? "No enrolled students match these filters." : "Select a program to view grade records."}
               searchKeys={['studentId', 'studentName', 'code', 'subject']}
               searchPlaceholder="Search student, course code or subject"
              
