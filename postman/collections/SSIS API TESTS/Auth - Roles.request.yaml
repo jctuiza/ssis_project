@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/api/roles/public"
+method: GET
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Returns HTTP 200\", function () {\r
+
+      \    pm.response.to.have.status(200);\r
+
+      });\r
+
+      \r
+
+      pm.test(\"Returns JSON\", function () {\r
+
+      \    pm.response.to.be.json;\r
+
+      });"
+    language: text/javascript
+order: 1791741020706

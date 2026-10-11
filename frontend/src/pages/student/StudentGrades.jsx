@@ -10,7 +10,13 @@ import { useSession } from '../../context/session'
 import * as gradeService from '../../services/shared/gradeService'
 import PageHeader from '../../components/ui/PageHeader'
 
-const yearLabels = ['First Year', 'Second Year', 'Third Year', 'Fourth Year', 'Fifth Year']
+const yearLabels = [
+  'Year 1',
+  'Year 2',
+  'Year 3',
+  'Year 4',
+  'Year 5',
+]
 const termLabel = (t) => `${yearLabels[Number(t.yearLevel) - 1] ? `${yearLabels[Number(t.yearLevel) - 1]} · ` : ''}A.Y. ${t.academicYear}, ${t.semester}`
 const show = (value) => (value == null ? '--' : Number(value).toFixed(2))
 
@@ -23,14 +29,42 @@ export default function StudentGrades() {
   const { user } = useSession()
   const { data: terms, loading, error } = useService(() => gradeService.getTermsForStudent(user.id), [user.id], "pages/student/StudentGrades.jsx:1")
   const term = useAcademicTerm()
+  
   const [selection, setSelection] = useState(null)
+  const [yearSelection, setYearSelection] = useState('all')
 
-  const loadedTerm = gradeTermFor(terms, term.activeTerm, selection, user.program)
   const recordedTerms = terms ?? []
-  const waiting = (loading && terms == null) || (term.settings.loading && !term.settings.data)
-  const current = loadedTerm ?? { id: '', semester: '', academicYear: '', program: user.program, courses: [] }
-  const options = loadedTerm && !recordedTerms.some(t => t.id === loadedTerm.id) ? [loadedTerm, ...recordedTerms] : recordedTerms
-  return (
+  const yearFilteredTerms =
+    yearSelection === 'all'
+      ? recordedTerms
+      : recordedTerms.filter(
+          t => String(t.yearLevel ?? t.year_level ?? '') === yearSelection
+        )
+
+  const loadedTerm = gradeTermFor(
+    yearFilteredTerms,
+    term.activeTerm,
+    selection,
+    user.program
+  )
+
+  const waiting =
+    (loading && terms == null) ||
+    (term.settings.loading && !term.settings.data)
+
+  const current = loadedTerm ?? {
+    id: '',
+    semester: '',
+    academicYear: '',
+    program: user.program,
+    courses: [],
+  }
+
+  const options =
+    loadedTerm && !yearFilteredTerms.some(t => t.id === loadedTerm.id)
+      ? [loadedTerm, ...yearFilteredTerms]
+      : yearFilteredTerms
+return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades"/>
       <p className="text-sm text-slate-500">Active academic term: {term.activeTerm ?? 'Loading…'}{loadedTerm && (loadedTerm.academicYear !== term.active.year || loadedTerm.semester !== term.active.semester) && <> · Viewing recorded term: {termLabel(loadedTerm)}</>}</p>
@@ -42,7 +76,24 @@ export default function StudentGrades() {
         )}
 
         {current && (
-          <>
+          <>   
+            <Select
+              id="grade-year"
+              aria-label="Enrollment year"
+              value={yearSelection}
+              onChange={value => {
+                setYearSelection(value)
+                setSelection(null)
+              }}
+              options={[
+                { value: 'all', label: 'All enrollment years' },
+                { value: '1', label: 'Year 1' },
+                { value: '2', label: 'Year 2' },
+                { value: '3', label: 'Year 3' },
+                { value: '4', label: 'Year 4' },
+                { value: '5', label: 'Year 5' },
+              ]}
+            />
             <Select
               id="grade-term"
               aria-label="Academic year and semester"
@@ -75,7 +126,29 @@ export default function StudentGrades() {
                     {current.courses.map((c) => (
                       <tr key={c.id ?? c.code} className="transition hover:bg-page dark:hover:bg-white/[0.03]">
                         <td className={td}>{c.code}</td>
-                        <td className={td}>{c.description}</td>
+                        <td className={td}>
+                          <div>{c.description}</div>
+
+                          {c.retake && (
+                            <div className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                              Retake
+                            </div>
+                          )}
+
+                          {(c.previousAttempts ?? []).length > 0 && (
+                            <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                              <div className="font-medium">Previous attempts</div>
+                              {c.previousAttempts.map((attempt, index) => (
+                                <div key={attempt.id ?? index}>
+                                  {attempt.academicYear} · {attempt.semester} ·{' '}
+                                  {attempt.finalGrade == null
+                                    ? '--'
+                                    : Number(attempt.finalGrade).toFixed(2)}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
                         <td className={tdCenter}>{c.units}</td>
                         <td className={tdCenter}>{show(c.prelim)}</td>
                         <td className={tdCenter}>{show(c.midterm)}</td>

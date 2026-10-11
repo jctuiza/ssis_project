@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/api/login"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"role\": \"admin\",      \r
+
+    \  \"identifier\": \"admin\",     \r
+
+    \  \"password\": \"admin123\"  \r
+
+    }\r\n"
+order: 1393245204172648

@@ -1,0 +1,6 @@
+name: SSIS LOCAL
+values:
+  - key: baseUrl
+    value: ''
+  - key: token
+    value: ''

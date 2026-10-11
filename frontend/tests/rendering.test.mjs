@@ -4,7 +4,22 @@ import { createServer } from 'vite'
 import React from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { renderToStaticMarkup } from 'react-dom/server'
-const server = await createServer({ root: new URL('../', import.meta.url).pathname, server: { middlewareMode: true, hmr: false }, appType: 'custom' })
+import { fileURLToPath } from 'node:url'
+const frontendRoot = fileURLToPath(new URL('../', import.meta.url))
+
+const server = await createServer({
+  configFile: false,
+  root: frontendRoot,
+  cacheDir: fileURLToPath(
+    new URL('../node_modules/.vite-test-cache/', import.meta.url)
+  ),
+  server: {
+    middlewareMode: true,
+    hmr: false,
+  },
+  appType: 'custom',
+})
+
 try {
   const module = p => server.ssrLoadModule(`/src/${p}`)
   const { default: SessionProvider } = await module('context/SessionProvider.jsx')

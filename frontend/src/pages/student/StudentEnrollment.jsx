@@ -73,6 +73,39 @@ export default function StudentEnrollment() {
                 {key:'availability',label:'Active term',render:row => data.subjects?.some(s=>s.code===row.code) ? 'Assigned for retake' : data.availableSubjects?.some(s=>s.code===row.code) ? 'Available for reviewed retake' : 'Subject unavailable; contact Department'},
               ]} empty="No outstanding subjects from earlier terms." />
             </Card>}
+            {received && (
+              <Card title="Available offerings for this term" padded={false}>
+                <p className="px-5 pt-4 text-sm text-slate-500 dark:text-slate-400">
+                  Available subjects include current-year offerings and subjects that
+                  may be requested for retaking. Retake assignments may require
+                  Department review and Registrar approval.
+                </p>
+                <DataTable
+                  rowKey="code"
+                  rows={data.availableSubjects ?? []}
+                  pageSize={10}
+                  empty="No additional subject offerings are available for this term."
+                  columns={[
+                    { key: 'code', label: 'Course code' },
+                    { key: 'name', label: 'Subject', render: row => row.name ?? row.subject ?? '--' },
+                    {
+                      key: 'yearLevel',
+                      label: 'Current level',
+                      render: row => {
+                        const year = row.yearLevel ?? row.year_level
+                        return year == null ? '--' : `Year ${year}`
+                      },
+                    },
+                    { key: 'units', label: 'Units' },
+                    {
+                      key: 'retake',
+                      label: 'Outstanding / retake',
+                      render: row => row.retake ? 'RETAKE' : 'CURRENT',
+                    },
+                  ]}
+                />
+              </Card>
+            )}
             <Card title="Subjects" padded={false}>
               <DataTable
                 rowKey="code"
