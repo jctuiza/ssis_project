@@ -4,7 +4,7 @@ import { createServer } from 'vite'
 import React from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { renderToStaticMarkup } from 'react-dom/server'
-const server = await createServer({ root: new URL('../', import.meta.url).pathname, server: { middlewareMode: true }, appType: 'custom' })
+const server = await createServer({ root: new URL('../', import.meta.url).pathname, server: { middlewareMode: true, hmr: false }, appType: 'custom' })
 try {
   const module = p => server.ssrLoadModule(`/src/${p}`)
   const { default: SessionProvider } = await module('context/SessionProvider.jsx')

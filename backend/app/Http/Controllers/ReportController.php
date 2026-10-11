@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ApiError;
-use App\Models\Assessment;
 use App\Models\Clearance;
 use App\Models\Department;
 use App\Models\DocumentRequest;
@@ -81,7 +80,7 @@ class ReportController extends ApiController
         $mine = $dept ? $students->where('department_id', $dept) : $students;
         $ids = $mine->pluck('user_id')->all();
         $requests = DocumentRequest::whereIn('student_id', $ids)->get();
-        $assessments = Assessment::where('term', Rules::currentTerm())->whereIn('student_id', $ids)->get();
+        $assessments = Rules::billingAccounts()->whereIn('student_id', $ids);
         $transactions = Transaction::whereIn('student_id', $ids)->get();
         $clearances = Clearance::where('term', Rules::currentTerm())->whereIn('student_id', $ids)->get();
 
@@ -89,7 +88,7 @@ class ReportController extends ApiController
             return [
                 'cards' => [
                     ['label' => 'Total collected', 'value' => Fmt::peso($transactions->where('status', 'Paid')->sum('amount'))],
-                    ['label' => 'Outstanding balance', 'value' => Fmt::peso($assessments->sum(fn ($a) => Rules::balanceOf($a)))],
+                    ['label' => 'Outstanding balance', 'value' => Fmt::peso($assessments->sum(fn ($a) => Rules::amountDue($a)))],
                     ['label' => 'Transactions', 'value' => $transactions->count()],
                     ['label' => 'Accounts fully paid', 'value' => $assessments->filter(fn ($a) => Rules::paymentStatusOf($a) === 'Fully Paid')->count()],
                 ],

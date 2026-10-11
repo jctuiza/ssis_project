@@ -3,16 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ApiError;
+use App\Models\AcademicProgram;
 use App\Models\ActivityLog;
 use App\Models\Announcement;
+use App\Models\Assessment;
 use App\Models\Department;
+use App\Models\Enrollment;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\User;
+use App\Support\AcademicEnrollment;
 use App\Support\Check;
 use App\Support\Fmt;
 use App\Support\Resources;
 use App\Support\Rules;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminController extends ApiController
 {
@@ -188,8 +194,8 @@ class AdminController extends ApiController
         $studentRole = Role::where('key', 'student')->value('role_id');
 
         return Department::when($user->role->key === 'department', fn ($q) => $q->where('department_id', $user->department_id ?: -1))->orderBy('department_id')->get()->map(fn ($d) => [
-            'programDetails'=>\App\Models\AcademicProgram::where('department_id',$d->department_id)->orderBy('name')->get(['id','name','duration_years'])->toArray(),
-            'programs' => \App\Models\AcademicProgram::where('department_id',$d->department_id)->orderBy('name')->pluck('name')->all(),
+            'programDetails' => AcademicProgram::where('department_id', $d->department_id)->orderBy('name')->get(['id', 'name', 'duration_years'])->toArray(),
+            'programs' => AcademicProgram::where('department_id', $d->department_id)->orderBy('name')->pluck('name')->all(),
             'id' => $d->department_id, 'code' => $d->code, 'name' => $d->name, 'head' => $d->head_name,
             'students' => User::where('department_id', $d->department_id)->where('role_id', $studentRole)->count(),
             'staff' => User::where('department_id', $d->department_id)->where('role_id', '!=', $studentRole)->count(),
@@ -200,9 +206,11 @@ class AdminController extends ApiController
     public function logs(Request $request)
     {
         $actor = $this->need($request, 'logs.view');
-        if ($actor->role->key !== 'admin') throw new ApiError('Only administrators can access activity logs.', 403);
+        if ($actor->role->key !== 'admin') {
+            throw new ApiError('Only administrators can access activity logs.', 403);
+        }
 
-        return ActivityLog::with('actor')->whereIn('entity_type', ['user','role','settings','student','enrollment','admission','security'])->whereNotIn('action', ['Updated own profile','Changed own password','Updated own profile picture','Removed own profile picture'])->orderByDesc('created_at')->orderByDesc('activity_log_id')->limit(500)->get()->filter(fn ($l) => Rules::auditable($l->actor, $l->action, $l->entity_type))->map(fn ($l) => Resources::log($l))->values();
+        return ActivityLog::with('actor')->whereIn('entity_type', ['user', 'role', 'settings', 'student', 'enrollment', 'admission', 'security'])->whereNotIn('action', ['Updated own profile', 'Changed own password', 'Updated own profile picture', 'Removed own profile picture'])->orderByDesc('created_at')->orderByDesc('activity_log_id')->limit(500)->get()->filter(fn ($l) => Rules::auditable($l->actor, $l->action, $l->entity_type))->map(fn ($l) => Resources::log($l))->values();
     }
 
     // ---- settings ---------------------------------------------------------------------------------------
@@ -211,7 +219,7 @@ class AdminController extends ApiController
         return [
             'systemName' => $s->system_name, 'currentTerm' => $s->current_term, 'enrollmentOpen' => $s->enrollment_open,
             'documentRequestsOpen' => $s->document_requests_open, 'emailNotifications' => $s->email_notifications, 'maintenanceMode' => $s->maintenance_mode,
-            'academicTerms' => \App\Models\Enrollment::query()->pluck('term')->merge(\App\Models\Assessment::query()->pluck('term'))->push($s->current_term)->unique()->sortDesc()->values()->all(),
+            'academicTerms' => Enrollment::query()->pluck('term')->merge(Assessment::query()->pluck('term'))->push($s->current_term)->unique()->sortDesc()->values()->all(),
             'tuitionPerUnit' => (float) ($s->tuition_per_unit ?? 1500), 'miscFees' => (float) ($s->misc_fees ?? 6500),
         ];
     }
@@ -226,6 +234,7 @@ class AdminController extends ApiController
     public function saveSettings(Request $request)
     {
         $this->need($request, 'settings.manage');
+        $request->validate(['sourceTerm' => 'sometimes|required|string|max:60']);
         $name = trim((string) $request->input('systemName'));
         $term = trim((string) $request->input('currentTerm'));
         if ($name === '' || $term === '') {
@@ -247,18 +256,28 @@ class AdminController extends ApiController
             }
             $fees[$column] = round((float) $value, 2);
         }
-        $settings = Rules::settings();
-        if (Rules::termParts($term)[0] !== Rules::termParts($settings->current_term)[0]) { throw new ApiError('Use Preview and activate academic year to change the academic year.',422,['currentTerm'=>'Activate the new year through the promotion panel.']); }
-        $settings->update($fees + [
-            'system_name' => mb_substr($name, 0, 150), 'current_term' => mb_substr($term, 0, 60),
-            'enrollment_open' => $request->boolean('enrollmentOpen'), 'document_requests_open' => $request->boolean('documentRequestsOpen'),
-            'email_notifications' => $request->boolean('emailNotifications'), 'maintenance_mode' => $request->boolean('maintenanceMode'),
-        ]);
-        Rules::forgetSettings(); // the settings are cached; clear them so every request sees the new values immediately
-        \App\Support\AcademicEnrollment::syncAll();
-        $this->log($request, 'Updated system settings', 'settings', 1);
+        try {
+            return DB::transaction(function () use ($request, $name, $term, $fees) {
+                $settings = SystemSetting::query()->orderBy('setting_id')->lockForUpdate()->firstOrFail();
+                if ($request->filled('sourceTerm') && Rules::termParts($request->input('sourceTerm')) !== Rules::termParts($settings->current_term)) {
+                    throw new ApiError('The active academic term changed. Refresh settings before saving.', 409);
+                }
+                if (Rules::termParts($term)[0] !== Rules::termParts($settings->current_term)[0]) {
+                    throw new ApiError('Use Preview and activate academic year to change the academic year.', 422, ['currentTerm' => 'Activate the new year through the promotion panel.']);
+                }
+                $settings->update($fees + [
+                    'system_name' => mb_substr($name, 0, 150), 'current_term' => mb_substr($term, 0, 60),
+                    'enrollment_open' => $request->boolean('enrollmentOpen'), 'document_requests_open' => $request->boolean('documentRequestsOpen'),
+                    'email_notifications' => $request->boolean('emailNotifications'), 'maintenance_mode' => $request->boolean('maintenanceMode'),
+                ]);
+                AcademicEnrollment::syncAll();
+                $this->log($request, 'Updated system settings', 'settings', $settings->setting_id);
 
-        return $this->settingsResource($settings->fresh());
+                return $this->settingsResource($settings->fresh());
+            }, 3);
+        } finally {
+            Rules::forgetSettings();
+        }
     }
 
     // ---- announcements ----------------------------------------------------------------------------------

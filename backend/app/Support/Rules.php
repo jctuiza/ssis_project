@@ -37,22 +37,10 @@ class Rules
     // ---- settings and enrollment --------------------------------------------------------------------
     private const SETTINGS_KEY = 'ssis:settings:attributes:v1';
 
-    private const CACHE_SECONDS = 600; // 10 minutes
-
-    /**
-     * The system settings are read on almost every request and change rarely, so they are cached (Redis when CACHE_STORE=redis).
-     * The cache is cleared as soon as the Admin saves new settings (see forgetSettings).
-     */
+    /** The active term must reflect the committed database row across every portal. */
     public static function settings(): SystemSetting
     {
-        // Cache scalar attributes, not a serialized model: cache.serializable_classes stays false.
-        $attributes = Cache::remember(
-            self::SETTINGS_KEY,
-            self::CACHE_SECONDS,
-            fn () => SystemSetting::query()->orderBy('setting_id')->firstOrFail()->getAttributes(),
-        );
-
-        return (new SystemSetting)->newFromBuilder($attributes);
+        return SystemSetting::query()->orderBy('setting_id')->firstOrFail();
     }
 
     public static function forgetSettings(): void
@@ -80,7 +68,7 @@ class Rules
 
     public static function currentTerm(): string
     {
-        return self::settings()->current_term;
+        return self::normalizedTerm(self::settings()->current_term);
     }
 
     /**
@@ -196,9 +184,44 @@ class Rules
         return max(0.0, round(self::totalOf($a) - self::tuitionPaid($a->assessment_id), 2));
     }
 
+    /** Keep debt on its original assessment; carryover is derived, never copied as another charge. */
+    public static function payableAssessments(Assessment $assessment, bool $lock = false): Collection
+    {
+        if (self::termParts($assessment->term) !== self::termParts(self::currentTerm())) {
+            return collect([$assessment]);
+        }
+        $parts = self::termParts($assessment->term);
+        $rows = Assessment::where('student_id', $assessment->student_id)->orderBy('assessment_id')
+            ->when($lock, fn ($query) => $query->lockForUpdate())->get();
+
+        return $rows->toBase()->filter(fn ($row) => ($period = self::termParts($row->term)) && $period <= $parts)
+            ->sortBy(fn ($row) => implode('|', self::termParts($row->term)).'|'.str_pad((string) $row->assessment_id, 10, '0', STR_PAD_LEFT))->values();
+    }
+
+    /** Include older unpaid bills when no active assessment exists, without showing them twice. */
+    public static function billingAccounts(): Collection
+    {
+        $current = self::termParts(self::currentTerm());
+        $rows = Assessment::orderBy('assessment_id')->get()->toBase()->filter(fn ($row) => ($period = self::termParts($row->term)) && $period <= $current);
+        $activeStudents = $rows->filter(fn ($row) => self::termParts($row->term) === $current)->pluck('student_id');
+
+        return $rows->filter(fn ($row) => self::termParts($row->term) === $current
+            || (! $activeStudents->contains($row->student_id) && self::balanceOf($row) > 0))->values();
+    }
+
+    public static function carryForward(Assessment $assessment): float
+    {
+        return round(self::payableAssessments($assessment)->where('assessment_id', '!=', $assessment->assessment_id)->sum(fn ($row) => self::balanceOf($row)), 2);
+    }
+
+    public static function amountDue(Assessment $assessment): float
+    {
+        return round(self::balanceOf($assessment) + self::carryForward($assessment), 2);
+    }
+
     public static function paymentStatusOf(Assessment $a): string
     {
-        return ! $a->tuition_pending && self::balanceOf($a) <= 0 ? 'Fully Paid' : (self::tuitionPaid($a->assessment_id) > 0 ? 'Partially Paid' : 'Unpaid');
+        return ! $a->tuition_pending && self::amountDue($a) <= 0 ? 'Fully Paid' : (self::tuitionPaid($a->assessment_id) > 0 ? 'Partially Paid' : 'Unpaid');
     }
 
     /** Remaining balance right after a confirmed tuition payment (ledger order = payment time, then id). */
@@ -333,7 +356,7 @@ class Rules
             return;
         }
         $a = self::assessmentFor($studentId);
-        $balance = $a ? self::balanceOf($a) : null;
+        $balance = $a ? self::amountDue($a) : null;
         $status = $a && ! $a->tuition_pending && $balance <= 0 ? 'Cleared' : 'Pending';
         $remarks = $a?->tuition_pending ? 'Tuition is awaiting subject assignment by the Department.' : ($status === 'Cleared' ? '' : ($a ? 'Remaining tuition balance of '.Fmt::peso($balance).' must be settled.' : 'No assessment has been issued yet.'));
         if ($row->status === $status && (string) $row->remarks === $remarks) {
@@ -355,7 +378,7 @@ class Rules
     /** Address a notification to one user ($userId), a whole role, or one department's staff ($departmentId). */
     public static function notify(string $role, string $message, ?int $userId = null, ?int $departmentId = null, ?string $page = null): void
     {
-        if (! in_array($page, ['enrollment', 'payments', 'documents', 'clearance', 'grades', 'students', 'home', 'requests', 'document-fees'], true)) {
+        if (! in_array($page, ['enrollment', 'payments', 'documents', 'clearance', 'grades', 'students', 'home', 'requests', 'enrollment-requests', 'document-fees'], true)) {
             return;
         }
         $roleId = self::roleId($role);

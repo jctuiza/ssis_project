@@ -1,8 +1,8 @@
+import useAcademicTerm from '../../hooks/useAcademicTerm'
 import { GRADE_COLUMNS } from '../../config/gradeColumns'
 import AcademicFilters from '../../components/forms/AcademicFilters'
 import Select from '../../components/forms/Select'
 import useAcademicFilters from '../../hooks/useAcademicFilters'
-import * as adminService from '../../services/admin/adminService'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
@@ -22,12 +22,9 @@ import * as gradeService from '../../services/shared/gradeService'
 export default function RegistrarGrades() {
   const { notify } = useToast()
   const filters = useAcademicFilters()
-  const settings = useService(adminService.getSettings, [], 'academic:settings')
-  const [year, setYear] = useState('')
-  const [semester, setSemester] = useState('')
-  const defaultYear = settings.data?.currentTerm?.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-') ?? ''
-  const selectedYear = year || defaultYear
-  const selectedSemester = semester || (/2nd|Second/i.test(settings.data?.currentTerm ?? '') ? 'Second Semester' : 'First Semester')
+  const term = useAcademicTerm()
+  const { settings, year: selectedYear, semester: selectedSemester, setYear, setSemester } = term
+  const defaultYear = term.active.year
   const { data, loading, error } = useService(() => filters.ready && selectedYear ? gradeService.getAll({ department_id: filters.departmentId, program: filters.program, academic_year: selectedYear, semester: selectedSemester, year_level: filters.yearLevel }) : Promise.resolve([]), [filters.departmentId, filters.program, selectedYear, selectedSemester, filters.yearLevel], 'registrar:filtered-grades')
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({ prelim: '', midterm: '', finals: '' })
@@ -51,6 +48,8 @@ export default function RegistrarGrades() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Grades" title="Grades" description="Encode and correct prelim, midterm and finals grades (0–100). Students see changes right away." />
+      <p className="text-sm text-slate-500">Active academic term: {term.activeTerm ?? 'Loading…'}{term.historical && <> · Viewing selected term: {selectedSemester}, A.Y. {selectedYear} <button className="underline" onClick={term.reset}>Use active term</button></>}</p>
+      {settings.error && <p role="alert" className="text-sm text-rose-500">{settings.error.message} <button className="underline" onClick={settings.reload}>Retry</button></p>}
       <AcademicFilters filters={filters}><Select label="Year Level" placeholder="All recorded years" value={filters.yearLevel} options={filters.yearOptions} onChange={e=>filters.setYearLevel(e.target.value)} /></AcademicFilters>
       <Card><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Select label="Academic year" value={selectedYear} placeholder="Select academic year" options={[...new Set([defaultYear, ...(settings.data?.academicTerms ?? []).map(term => term.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-'))].filter(Boolean))]} onChange={event => setYear(event.target.value)} />

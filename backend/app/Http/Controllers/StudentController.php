@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ApiError;
+use App\Models\AcademicProgram;
 use App\Models\Announcement;
 use App\Models\Clearance;
 use App\Models\Department;
@@ -11,8 +12,11 @@ use App\Models\Enrollment;
 use App\Models\EnrollmentSubject;
 use App\Models\Role;
 use App\Models\StudentProfile;
+use App\Models\SystemSetting;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\AcademicAssignments;
+use App\Support\AcademicEnrollment;
 use App\Support\Check;
 use App\Support\Fmt;
 use App\Support\Resources;
@@ -45,7 +49,7 @@ class StudentController extends ApiController
             'student' => Resources::user($student),
             'term' => Rules::currentTerm(),
             'clearance' => ['cleared' => $clearances->where('status', 'Cleared')->count(), 'total' => $clearances->count()],
-            'balance' => $assessment ? Rules::balanceOf($assessment) : 0,
+            'balance' => $assessment ? Rules::amountDue($assessment) : round(Rules::billingAccounts()->where('student_id', $student->user_id)->sum(fn ($bill) => Rules::balanceOf($bill)), 2),
             'payment' => $assessment ? Resources::assessment($assessment) + ['pendingAmount' => Rules::pendingPayments($assessment->assessment_id)] : null,
             'pendingRequests' => $requests->whereNotIn('status', ['Completed', 'Rejected'])->count(),
             'awaitingPayment' => $requests->where('status', 'Pending Payment')->count(),
@@ -92,7 +96,10 @@ class StudentController extends ApiController
             throw new ApiError('Choose a department.', 422, ['departmentId' => 'Select a department.']);
         }
 
-        if (! \App\Models\AcademicProgram::where('department_id',$departmentId)->where('name',$v['program'])->exists()) throw new ApiError('Select a program under this department.',422,['program'=>'Select a valid program.']);
+        if (! AcademicProgram::where('department_id', $departmentId)->where('name', $v['program'])->exists()) {
+            throw new ApiError('Select a program under this department.', 422, ['program' => 'Select a valid program.']);
+        }
+
         return $v + ['_department' => $departmentId];
     }
 
@@ -104,7 +111,7 @@ class StudentController extends ApiController
         $temporary = $this->temporaryPassword();
 
         $student = DB::transaction(function () use ($v, $actor, $temporary) {
-            \App\Models\SystemSetting::query()->lockForUpdate()->firstOrFail();
+            SystemSetting::query()->lockForUpdate()->firstOrFail();
             $username = Rules::nextStudentNumber();
             $student = User::create([
                 'username' => $username, 'email' => $v['email'], 'password' => $temporary, 'name' => $v['name'],
@@ -117,10 +124,10 @@ class StudentController extends ApiController
                 'signature' => $v['name'],
             ]);
             $enrollment = Enrollment::create([
-                'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Not Enrolled', ...\App\Support\AcademicAssignments::snapshot($student), 'submitted_at' => now(),
+                'student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Not Enrolled', ...AcademicAssignments::snapshot($student), 'submitted_at' => now(),
                 'reviewed_by' => $actor->user_id, 'reviewed_at' => now(), 'remarks' => 'Registered by the Registrar.',
             ]);
-            foreach (Rules::offeredSubjects($v['_department'], $v['program'], \App\Support\AcademicAssignments::year($v['yearLevel'])) as $subject) {
+            foreach (Rules::offeredSubjects($v['_department'], $v['program'], AcademicAssignments::year($v['yearLevel'])) as $subject) {
                 EnrollmentSubject::create(['enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code, 'subject_name' => $subject->name, 'units' => $subject->units, 'schedule' => $subject->schedule]);
             }
             foreach (Rules::OFFICES as $office) {
@@ -156,7 +163,7 @@ class StudentController extends ApiController
                 'program' => $v['program'], 'year_level' => $v['yearLevel'], 'birthdate' => $v['birthdate'], 'address' => $v['address'],
                 'emergency_name' => $v['emergencyName'] ?? '', 'emergency_contact' => $v['emergencyContact'] ?? '', 'signature' => $v['name'],
             ]);
-            \App\Support\AcademicEnrollment::prepare($student->fresh());
+            AcademicEnrollment::prepare($student->fresh());
 
             Rules::logActivity($actor, "Updated student information of {$v['name']} ({$student->username})", 'student', $student->username);
         });

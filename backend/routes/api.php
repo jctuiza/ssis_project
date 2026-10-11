@@ -1,37 +1,41 @@
 <?php
 
+use App\Http\Controllers\AcademicProgressionController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClearanceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\EnrollmentRequestController;
 use App\Http\Controllers\GradeController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SubjectController;
+use App\Http\Middleware\ValidatePortalSession;
 use Illuminate\Support\Facades\Route;
 
-Route::get('admissions/options', [\App\Http\Controllers\AdmissionController::class, 'options'])->middleware('throttle:60,1');
-Route::post('admissions', [\App\Http\Controllers\AdmissionController::class, 'store'])->middleware('throttle:5,1');
+Route::get('admissions/options', [AdmissionController::class, 'options'])->middleware('throttle:60,1');
+Route::post('admissions', [AdmissionController::class, 'store'])->middleware('throttle:5,1');
 
 // Public: the login pages need the role list, and the login itself is rate limited (brute-force protection).
 Route::get('roles/public', [AuthController::class, 'publicRoles']);
 Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 // Everything else needs a valid bearer token. Permissions are checked again inside each controller.
-Route::middleware(['auth:sanctum', \App\Http\Middleware\ValidatePortalSession::class, 'throttle:api'])->group(function () {
-    Route::post('admissions/{id}/registrar-credentials', [\App\Http\Controllers\AdmissionController::class, 'registrarCredentials'])->whereNumber('id')->middleware('throttle:10,1');
-    Route::post('admissions/{id}/email-credentials', [\App\Http\Controllers\AdmissionController::class, 'emailCredentials'])->whereNumber('id')->middleware('throttle:5,1');
-    Route::get('academic/programs', [\App\Http\Controllers\AcademicProgressionController::class, 'programs']);
-    Route::patch('academic/programs/{id}', [\App\Http\Controllers\AcademicProgressionController::class, 'updateProgram'])->whereNumber('id');
-    Route::post('academic/promotions/preview', [\App\Http\Controllers\AcademicProgressionController::class, 'preview']);
-    Route::post('academic/promotions/activate', [\App\Http\Controllers\AcademicProgressionController::class, 'activate']);
-    Route::get('admissions/{id}/readiness', [\App\Http\Controllers\AdmissionController::class, 'readiness'])->whereNumber('id');
-    Route::get('admissions', [\App\Http\Controllers\AdmissionController::class, 'index']);
-    Route::patch('admissions/{id}', [\App\Http\Controllers\AdmissionController::class, 'decide'])->whereNumber('id');
+Route::middleware(['auth:sanctum', ValidatePortalSession::class, 'throttle:api'])->group(function () {
+    Route::post('admissions/{id}/registrar-credentials', [AdmissionController::class, 'registrarCredentials'])->whereNumber('id')->middleware('throttle:10,1');
+    Route::post('admissions/{id}/email-credentials', [AdmissionController::class, 'emailCredentials'])->whereNumber('id')->middleware('throttle:5,1');
+    Route::get('academic/programs', [AcademicProgressionController::class, 'programs']);
+    Route::patch('academic/programs/{id}', [AcademicProgressionController::class, 'updateProgram'])->whereNumber('id');
+    Route::post('academic/promotions/preview', [AcademicProgressionController::class, 'preview']);
+    Route::post('academic/promotions/activate', [AcademicProgressionController::class, 'activate']);
+    Route::get('admissions/{id}/readiness', [AdmissionController::class, 'readiness'])->whereNumber('id');
+    Route::get('admissions', [AdmissionController::class, 'index']);
+    Route::patch('admissions/{id}', [AdmissionController::class, 'decide'])->whereNumber('id');
     Route::delete('notifications', [AccountController::class, 'deleteNotifications']);
     Route::get('me', [AuthController::class, 'me']);
     Route::post('logout', [AuthController::class, 'logout']);
@@ -47,6 +51,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\ValidatePortalSession::c
     Route::patch('students/{id}', [StudentController::class, 'update']);
     Route::get('students/{id}/dashboard', [StudentController::class, 'dashboard']);
     Route::get('students/{id}/id-card', [StudentController::class, 'idCard']);
+
+    Route::get('enrollment-requests', [EnrollmentRequestController::class, 'index']);
+    Route::post('enrollment-requests', [EnrollmentRequestController::class, 'store']);
+    Route::get('enrollment-requests/{id}', [EnrollmentRequestController::class, 'show'])->whereNumber('id');
+    Route::patch('enrollment-requests/{id}/recommend', [EnrollmentRequestController::class, 'recommend'])->whereNumber('id');
+    Route::post('enrollment-requests/{id}/decision', [EnrollmentRequestController::class, 'decide'])->whereNumber('id');
 
     Route::get('enrollment', [EnrollmentController::class, 'index']);
     Route::post('enrollment', [EnrollmentController::class, 'submit']);

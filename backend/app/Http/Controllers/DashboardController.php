@@ -4,11 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\ApiError;
 use App\Models\ActivityLog;
-use App\Models\Assessment;
+use App\Models\AdmissionApplication;
 use App\Models\Clearance;
 use App\Models\Department;
 use App\Models\DocumentRequest;
-use App\Models\Enrollment;
 use App\Models\Role;
 use App\Models\Transaction;
 use App\Models\User;
@@ -27,8 +26,8 @@ class DashboardController extends ApiController
     public function cashier(Request $request)
     {
         $user = $this->need($request, 'payments.manage');
-        $assessments = Assessment::where('term', Rules::currentTerm())->get();
-        $balances = $assessments->mapWithKeys(fn ($a) => [$a->assessment_id => Rules::balanceOf($a)]);
+        $assessments = Rules::billingAccounts();
+        $balances = $assessments->mapWithKeys(fn ($a) => [$a->assessment_id => Rules::amountDue($a)]);
 
         return [
             'totals' => [
@@ -53,7 +52,7 @@ class DashboardController extends ApiController
         return [
             'totals' => [
                 'students' => $this->studentCount(),
-                'enrollmentRequests' => \App\Models\AdmissionApplication::where('status','Pending')->count(),
+                'enrollmentRequests' => AdmissionApplication::where('status', 'Pending')->count(),
                 'pendingClearance' => Clearance::where('term', Rules::currentTerm())->where('office', 'Registrar')->where('status', '!=', 'Cleared')->count(),
                 'pendingRequests' => DocumentRequest::whereIn('status', ['Submitted', 'Under Review', 'Payment Recorded'])->count(),
             ],
@@ -87,7 +86,9 @@ class DashboardController extends ApiController
     public function admin(Request $request)
     {
         $actor = $this->need($request, 'users.manage');
-        if ($actor->role->key !== 'admin') throw new ApiError('Only administrators can access this dashboard.',403);
+        if ($actor->role->key !== 'admin') {
+            throw new ApiError('Only administrators can access this dashboard.', 403);
+        }
         $students = $this->studentCount();
 
         return [
@@ -98,7 +99,7 @@ class DashboardController extends ApiController
                 'pendingRequests' => DocumentRequest::where('status', 'Submitted')->count(),
                 'todayTransactions' => Transaction::whereDate('created_at', today())->count(),
             ],
-            'logs' => ActivityLog::with('actor')->whereIn('entity_type', ['user','role','settings','student','enrollment','admission','security'])->whereNotIn('action', ['Updated own profile','Changed own password','Updated own profile picture','Removed own profile picture'])->orderByDesc('created_at')->orderByDesc('activity_log_id')->limit(50)->get()->filter(fn ($l) => Rules::auditable($l->actor,$l->action,$l->entity_type))->take(5)->values()->map(fn ($l) => Resources::log($l)),
+            'logs' => ActivityLog::with('actor')->whereIn('entity_type', ['user', 'role', 'settings', 'student', 'enrollment', 'admission', 'security'])->whereNotIn('action', ['Updated own profile', 'Changed own password', 'Updated own profile picture', 'Removed own profile picture'])->orderByDesc('created_at')->orderByDesc('activity_log_id')->limit(50)->get()->filter(fn ($l) => Rules::auditable($l->actor, $l->action, $l->entity_type))->take(5)->values()->map(fn ($l) => Resources::log($l)),
             'usersByRole' => Role::orderBy('role_id')->get()->map(fn ($r) => ['label' => $r->label, 'value' => User::where('role_id', $r->role_id)->count()]),
         ];
     }

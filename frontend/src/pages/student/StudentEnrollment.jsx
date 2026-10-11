@@ -1,3 +1,4 @@
+import ExistingEnrollmentRequest from '../../components/forms/ExistingEnrollmentRequest'
 import { DataLoading } from '../../context/DataLoading'
 import { useState } from 'react'
 import Button from '../../components/ui/Button'
@@ -40,7 +41,8 @@ export default function StudentEnrollment() {
   }
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Enrollment"/>
+      <PageHeader eyebrow="Enrollment" action={<Button variant="outline" disabled={loading || saving} onClick={reload}>Refresh enrollment</Button>} />
+      {received && <ExistingEnrollmentRequest eligibleTypes={received.eligibleRequestTypes ?? []} enrollment={received.enrollment} enrollmentOpen={received.enrollmentOpen} onUpdate={reload} />}
       <DataLoading value={waiting}>
       {error && <p role="alert" className="text-sm text-rose-500">{error.message} <button className="underline" onClick={reload}>Retry</button></p>}
         {data && (
@@ -50,6 +52,7 @@ export default function StudentEnrollment() {
                 { label: 'Academic term', value: data.enrollment?.term ?? data.term },
                 { label: 'Enrollment status', value: <StatusBadge status={data.enrollment?.status ?? 'Not Enrolled'} /> },
                 { label: 'Program', value: data.enrollment?.program ?? user.program },
+                { label: 'Classification', value: data.classification ?? user.classification },
                 { label: 'Year level', value: data.enrollment?.yearLevel ?? user.yearLevel },
                 { label: 'Total units', value: data.totalUnits },
                 { label: 'Submitted on', value: data.enrollment?.submittedAt },
@@ -59,8 +62,16 @@ export default function StudentEnrollment() {
               ]} />
             </Card>
             {received && data.enrollment?.status !== 'Enrolled' && <Card title="Enrollment confirmation">
-              <p className="text-sm text-slate-500 dark:text-slate-400">{!data.enrollmentOpen ? 'Enrollment is currently closed.' : data.pendingOffices?.length ? `Complete clearance from: ${data.pendingOffices.join(', ')}. Please clear all required clearances before enrolling.` : 'All offices have cleared you. Confirm enrollment below once your subject assignment is ready.'}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{!data.enrollmentOpen ? 'Enrollment is currently closed.' : (data.classification === 'Irregular' || data.enrollment?.assignmentMode === 'manual') && !data.reviewApproved ? 'Department review and Registrar subject approval are required before you can confirm. Follow your enrollment request above.' : data.pendingOffices?.length ? `Complete clearance from: ${data.pendingOffices.join(', ')}. Please clear all required clearances before enrolling.` : 'All offices have cleared you. Confirm enrollment below once your subject assignment is ready.'}</p>
               {data.canSubmit && <Button className="mt-4" onClick={() => setConfirming(true)}>Enroll</Button>}
+            </Card>}
+            {received && <Card title="Outstanding subjects to complete" padded={false}>
+              <p className="px-5 pt-4 text-sm text-slate-500">Previous failed or incomplete subjects remain here until passed. Only subjects offered in the active term can be selected for retaking; ask your Department about unavailable subjects.</p>
+              <DataTable rowKey="code" rows={data.outstandingSubjects ?? []} columns={[
+                {key:'code',label:'Course code'}, {key:'subject',label:'Subject'}, {key:'academicYear',label:'Previous academic year'},
+                {key:'semester',label:'Previous semester'}, {key:'status',label:'Previous status'},
+                {key:'availability',label:'Active term',render:row => data.subjects?.some(s=>s.code===row.code) ? 'Assigned for retake' : data.availableSubjects?.some(s=>s.code===row.code) ? 'Available for reviewed retake' : 'Subject unavailable; contact Department'},
+              ]} empty="No outstanding subjects from earlier terms." />
             </Card>}
             <Card title="Subjects" padded={false}>
               <DataTable
@@ -72,6 +83,7 @@ export default function StudentEnrollment() {
                 columns={[
                   { key: 'code', label: 'Course code' },
                   { key: 'name', label: 'Subject' },
+                  {key:'retake',label:'Type',render:row=>row.retake ? 'Retake' : 'New subject'},
                   { key: 'units', label: 'Units' },
                   { key: 'schedule', label: 'Schedule' },
                 ]}

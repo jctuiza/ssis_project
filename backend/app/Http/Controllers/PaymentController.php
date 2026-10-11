@@ -6,6 +6,7 @@ use App\Exceptions\ApiError;
 use App\Models\Assessment;
 use App\Models\DocumentRequest;
 use App\Models\DocumentType;
+use App\Models\SystemSetting;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Fmt;
@@ -47,6 +48,7 @@ class PaymentController extends ApiController
         $assessment = Rules::assessmentFor($student->user_id);
 
         return [
+            'previousBalance' => round(Assessment::where('student_id', $student->user_id)->get()->filter(fn ($a) => ($period = Rules::termParts($a->term)) && $period < Rules::termParts(Rules::currentTerm()))->sum(fn ($a) => Rules::balanceOf($a)), 2),
             'assessment' => $assessment ? Resources::assessment($assessment) + ['pendingAmount' => Rules::pendingPayments($assessment->assessment_id)] : null,
             'history' => $this->newest(Transaction::where('student_id', $student->user_id))->get()->map(fn ($t) => Resources::transaction($t)),
             'documentFees' => Transaction::where('student_id', $student->user_id)->where('type', 'document_fee')->where('status', 'Pending')->get()->map(fn ($t) => Resources::transaction($t)),
@@ -58,7 +60,7 @@ class PaymentController extends ApiController
     {
         $this->need($request, 'payments.manage');
 
-        return Assessment::where('term', Rules::currentTerm())->orderBy('assessment_id')->get()->map(fn ($a) => Resources::assessment($a));
+        return Rules::billingAccounts()->map(fn ($a) => Resources::assessment($a));
     }
 
     // GET /api/transactions   (Cashier, and the Admin in read-only mode)
@@ -80,32 +82,39 @@ class PaymentController extends ApiController
             throw new ApiError('Choose a valid payment method.');
         }
 
-        $txn = DB::transaction(function () use ($assessment, $value, $method, $actor) {
-            // Lock the assessment row so two simultaneous payments cannot overpay the same balance.
-            $assessment = Assessment::where('assessment_id', $assessment->assessment_id)->lockForUpdate()->firstOrFail();
-            $balance = Rules::balanceOf($assessment);
+        $transactions = DB::transaction(function () use ($assessment, $value, $method, $actor) {
+            SystemSetting::query()->lockForUpdate()->firstOrFail();
+            User::whereKey($assessment->student_id)->lockForUpdate()->firstOrFail();
+            $assessment = Assessment::whereKey($assessment->assessment_id)->lockForUpdate()->firstOrFail();
+            $bills = Rules::payableAssessments($assessment, lock: true);
+            $balance = round($bills->sum(fn ($bill) => Rules::balanceOf($bill)), 2);
             if ($balance <= 0) {
                 throw new ApiError('This account is already fully paid.');
             }
             if ($value > $balance) {
                 throw new ApiError('The payment cannot be more than the remaining balance of '.Fmt::peso($balance).'.');
             }
-            $txn = Rules::recordTuitionPayment($assessment, $value, Rules::paymentDescription($assessment, $value), $method, $actor);
-            if ($assessment->term === Rules::currentTerm()) {
-                Rules::syncCashierClearance($assessment->student_id, by: $actor);
+            $remaining = $value;
+            $transactions = collect();
+            foreach ($bills as $bill) {
+                $allocated = round(min($remaining, Rules::balanceOf($bill)), 2);
+                if ($allocated <= 0) {
+                    continue;
+                }
+                $transactions->push(Rules::recordTuitionPayment($bill, $allocated, Rules::paymentDescription($bill, $allocated), $method, $actor));
+                $remaining = round($remaining - $allocated, 2);
             }
+            Rules::syncCashierClearance($assessment->student_id, by: $actor);
 
-            return $txn;
-        });
+            return $transactions;
+        }, 3);
 
-        $remaining = Rules::balanceOf($assessment);
-        $to = fn (string $message) => Rules::notify('student', $message, $assessment->student_id, page: 'payments');
-        if ($remaining > 0 || $assessment->tuition_pending) {
-            $to('Partial payment of '.Fmt::peso($value)." recorded ({$txn->reference_no}). Total paid so far: ".Fmt::peso(Rules::tuitionPaid($assessment->assessment_id)).'.');
-        } else {
-            $to('Payment of '.Fmt::peso($value)." recorded ({$txn->reference_no}). Your balance is fully paid. Thank you!");
+        $remaining = Rules::amountDue($assessment);
+        $references = $transactions->pluck('reference_no')->implode(', ');
+        Rules::notify('student', 'Payment of '.Fmt::peso($value).' recorded ('.$references.'). Remaining amount due: '.Fmt::peso($remaining).'.', $assessment->student_id, page: 'payments');
+        foreach ($transactions as $txn) {
+            $this->log($request, "Recorded payment {$txn->reference_no}", 'transaction', $txn->transaction_id);
         }
-        $this->log($request, "Recorded payment {$txn->reference_no}", 'transaction', $txn->transaction_id);
 
         return Resources::assessment($assessment->fresh());
     }

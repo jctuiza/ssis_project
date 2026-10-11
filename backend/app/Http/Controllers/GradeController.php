@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ApiError;
+use App\Models\Enrollment;
+use App\Models\EnrollmentSubject;
 use App\Models\Grade;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\Resources;
 use App\Support\Rules;
+use App\Support\StudentStanding;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class GradeController extends ApiController
 {
@@ -17,14 +22,30 @@ class GradeController extends ApiController
         $student = $this->ownOrStaff($request, $id, 'grades.manage', 'records.view', 'students.view');
         $order = ['First Semester' => 1, 'Second Semester' => 2];
         $terms = [];
-        foreach (Grade::where('student_id', $student->user_id)->orderBy('grade_id')->get() as $g) {
+        $enrollments = Enrollment::where('student_id', $student->user_id)->get();
+        $attempts = Grade::where('student_id', $student->user_id)->orderBy('grade_id')->get();
+        foreach ($enrollments as $enrollment) {
+            $parts = Rules::termParts($enrollment->term);
+            if (! $parts) {
+                continue;
+            }
+            $key = $parts[0].'-'.$order[$parts[1]];
+            $terms[$key] ??= ['id' => $key, 'studentId' => $student->username,
+                'academicYear' => $parts[0], 'semester' => $parts[1],
+                'program' => Resources::programCode($enrollment->program_snapshot ?? Resources::programOf($student->user_id)),
+                'yearLevel' => $enrollment->year_level, 'courses' => []];
+        }
+        foreach ($attempts as $g) {
+            $enrollment = $enrollments->first(fn ($row) => Rules::termParts($row->term) === [$g->academic_year, $g->semester]);
             $key = $g->academic_year.'-'.$order[$g->semester];
             $terms[$key] ??= [
                 'id' => $key, 'studentId' => $student->username, 'academicYear' => $g->academic_year, 'semester' => $g->semester,
-                'program' => Resources::programCode(Resources::programOf($student->user_id)), 'courses' => [],
+                'program' => Resources::programCode($enrollment?->program_snapshot ?? Resources::programOf($student->user_id)),
+                'yearLevel' => $enrollment?->year_level, 'courses' => [],
             ];
             $terms[$key]['courses'][] = [
-                'code' => $g->course_code, 'description' => $g->description, 'units' => $g->units, 'prelim' => $g->prelim,
+                'id' => $g->grade_id, 'yearLevel' => $enrollment?->year_level,
+                ...StudentStanding::attemptDetails($g, $attempts), 'code' => $g->course_code, 'description' => $g->description, 'units' => $g->units, 'prelim' => $g->prelim,
                 'midterm' => $g->midterm, 'finals' => $g->finals, 'finalGrade' => Resources::finalGrade($g), 'status' => Resources::gradeStatus(Resources::finalGrade($g)),
             ];
         }
@@ -37,11 +58,13 @@ class GradeController extends ApiController
     public function index(Request $request)
     {
         $actor = $this->need($request, 'grades.manage');
-        if ($actor->role->key !== 'department' || ! $actor->department_id) throw new ApiError('Only assigned department staff can manage grades.', 403);
+        if ($actor->role->key !== 'department' || ! $actor->department_id) {
+            throw new ApiError('Only assigned department staff can manage grades.', 403);
+        }
 
         $grades = Grade::query()->whereIn('student_id', User::where('department_id', $actor->department_id)->select('user_id'))
             ->when($request->query('department_id'), fn ($q, $dept) => $q->whereIn('student_id', User::where('department_id', $dept)->select('user_id')))
-            
+
             ->when($request->query('subject'), fn ($q, $subject) => $q->where('course_code', $subject))
             ->when($request->query('academic_year'), fn ($q, $year) => $q->where('academic_year', $year))
             ->when($request->query('semester'), fn ($q, $semester) => $q->where('semester', $semester))
@@ -50,17 +73,20 @@ class GradeController extends ApiController
                     ->whereColumn('enrollments.student_id', 'grades.student_id')->whereColumn('enrollment_subjects.subject_code', 'grades.course_code')->where('enrollments.status', 'Enrolled');
             })
             ->orderBy('grade_id')->get();
-        $enrollments = \App\Models\Enrollment::whereIn('student_id', $grades->pluck('student_id'))->where('status', 'Enrolled')->get();
-        $links = \App\Models\EnrollmentSubject::whereIn('enrollment_id', $enrollments->pluck('enrollment_id'))->get()->groupBy('enrollment_id');
+        $enrollments = Enrollment::whereIn('student_id', $grades->pluck('student_id'))->where('status', 'Enrolled')->get();
+        $links = EnrollmentSubject::whereIn('enrollment_id', $enrollments->pluck('enrollment_id'))->get()->groupBy('enrollment_id');
         $byStudent = $enrollments->groupBy('student_id');
+        $attempts = Grade::whereIn('student_id', $grades->pluck('student_id'))->get();
+
         return $grades->filter(fn ($grade) => ($byStudent->get($grade->student_id) ?? collect())->contains(
             fn ($enrollment) => Rules::termParts($enrollment->term) === [$grade->academic_year, $grade->semester]
-                && (! $request->query('year_level') || (int)$enrollment->year_level === (int)$request->query('year_level'))
-                && (! $request->query('program') || ($enrollment->program_snapshot ?? \App\Models\StudentProfile::find($grade->student_id)?->program) === $request->query('program'))
+                && (! $request->query('year_level') || (int) $enrollment->year_level === (int) $request->query('year_level'))
+                && (! $request->query('program') || ($enrollment->program_snapshot ?? StudentProfile::find($grade->student_id)?->program) === $request->query('program'))
                 && ($links->get($enrollment->enrollment_id) ?? collect())->contains('subject_code', $grade->course_code),
-        ))->map(function ($grade) use ($byStudent) {
-            $enrollment=$byStudent->get($grade->student_id)->first(fn ($e)=>Rules::termParts($e->term) === [$grade->academic_year,$grade->semester]);
-            return Resources::grade($grade) + ['yearLevel'=>$enrollment?->year_level,'programSnapshot'=>$enrollment?->program_snapshot];
+        ))->map(function ($grade) use ($byStudent, $attempts) {
+            $enrollment = $byStudent->get($grade->student_id)->first(fn ($e) => Rules::termParts($e->term) === [$grade->academic_year, $grade->semester]);
+
+            return Resources::grade($grade) + StudentStanding::attemptDetails($grade, $attempts) + ['yearLevel' => $enrollment?->year_level, 'programSnapshot' => $enrollment?->program_snapshot];
         })->values();
     }
 
@@ -68,19 +94,28 @@ class GradeController extends ApiController
     public function update(Request $request, int $id)
     {
         $actor = $this->need($request, 'grades.manage');
-        if ($actor->role->key !== 'department' || ! $actor->department_id) throw new ApiError('Only assigned department staff can manage grades.', 403);
+        if ($actor->role->key !== 'department' || ! $actor->department_id) {
+            throw new ApiError('Only assigned department staff can manage grades.', 403);
+        }
         $grade = Grade::find($id) ?? throw new ApiError('Grade record not found.', 404);
-        if (! $this->inScope($actor, $grade->student_id)) throw new ApiError('This grade belongs to another department.', 403);
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $actor, $grade, $id) {
+        if (! $this->inScope($actor, $grade->student_id)) {
+            throw new ApiError('This grade belongs to another department.', 403);
+        }
+
+        return DB::transaction(function () use ($request, $actor, $grade, $id) {
             User::whereKey($grade->student_id)->lockForUpdate()->firstOrFail();
             $grade = Grade::whereKey($id)->lockForUpdate()->firstOrFail();
-            $valid = \App\Models\Enrollment::where('student_id', $grade->student_id)->where('status','Enrolled')->get()->contains(fn ($e) => Rules::termParts($e->term) === [$grade->academic_year, $grade->semester] && in_array($grade->course_code, Rules::subjectCodesOf($e), true));
-            if (! $valid) throw new ApiError('This grade does not belong to a completed enrollment for its term.', 422);
+            $valid = Enrollment::where('student_id', $grade->student_id)->where('status', 'Enrolled')->get()->contains(fn ($e) => Rules::termParts($e->term) === [$grade->academic_year, $grade->semester] && in_array($grade->course_code, Rules::subjectCodesOf($e), true));
+            if (! $valid) {
+                throw new ApiError('This grade does not belong to a completed enrollment for its term.', 422);
+            }
 
             $request->validate(['status' => 'prohibited', 'finalGrade' => 'prohibited', 'prelim' => 'sometimes|nullable|numeric|between:0,100', 'midterm' => 'sometimes|nullable|numeric|between:0,100', 'finals' => 'sometimes|nullable|numeric|between:0,100']);
             $patch = [];
             foreach (['prelim', 'midterm', 'finals'] as $period) {
-                if (! $request->exists($period)) { continue; }
+                if (! $request->exists($period)) {
+                    continue;
+                }
                 $value = $request->input($period);
                 if ($value === null || $value === '') {
                     $patch[$period] = null;
@@ -90,7 +125,9 @@ class GradeController extends ApiController
                     $patch[$period] = round((float) $value, 2);
                 }
             }
-            if (collect($patch)->every(fn ($value, $key) => $grade->{$key} === $value)) return Resources::grade($grade);
+            if (collect($patch)->every(fn ($value, $key) => $grade->{$key} === $value)) {
+                return Resources::grade($grade);
+            }
             $grade->update($patch + ['posted_by' => $actor->user_id]);
 
             $student = User::findOrFail($grade->student_id);

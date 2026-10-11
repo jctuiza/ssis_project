@@ -65,7 +65,7 @@ export default function Payments() {
         onClose={() => setTarget(null)}
         footer={<><Button variant="outline" onClick={() => setTarget(null)}>Cancel</Button><Button loading={saving} onClick={save}>Record payment</Button></>}
       >
-        <div className="grid gap-4">
+        <div className="grid gap-4">{target?.carryForward > 0 && <p className="text-sm text-slate-500">Includes {peso(target.carryForward)} from previous unpaid terms. Payment settles the oldest debt first; allocations keep their original term and payment reference.</p>}
           <Input label="Amount received" type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
           {target && <div><Button variant="ghost" size="sm" onClick={() => setAmount(String(target.balance))}>Pay the full balance ({peso(target.balance)})</Button></div>}
           <Select label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)} options={PAYMENT_METHODS} />

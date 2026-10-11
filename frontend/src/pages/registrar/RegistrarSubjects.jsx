@@ -1,3 +1,4 @@
+import useAcademicTerm from '../../hooks/useAcademicTerm'
 import { useSession } from '../../context/session'
 import AcademicFilters from '../../components/forms/AcademicFilters'
 import useAcademicFilters from '../../hooks/useAcademicFilters'
@@ -24,13 +25,9 @@ export default function RegistrarSubjects() {
   const { user } = useSession()
   const { notify } = useToast()
   const filters = useAcademicFilters()
-  const settings = useService(adminService.getSettings, [], 'subjects:settings')
-  const currentSemester = /2nd|Second/i.test(settings.data?.currentTerm ?? '') ? 'Second Semester' : 'First Semester'
-  const currentYear = settings.data?.currentTerm?.match(/(\d{4})\D{1,3}(\d{4})/)?.slice(1).join('-') ?? ''
-  const [semesterFilter, setSemesterFilter] = useState('')
-  const [yearFilter, setYearFilter] = useState('')
-  const activeSemester = semesterFilter || currentSemester
-  const activeYear = yearFilter || currentYear
+  const term = useAcademicTerm()
+  const { settings, year: activeYear, semester: activeSemester, setYear: setYearFilter, setSemester: setSemesterFilter } = term
+  const currentSemester = term.active.semester
   const departments = useService(adminService.getDepartments, [], 'subjects:departments')
   const [form, setForm] = useState(null) // null = closed; { editing: code | null, values }
   const [errors, setErrors] = useState({})
@@ -85,6 +82,7 @@ export default function RegistrarSubjects() {
 
   return (
     <>
+      <p className="text-sm text-slate-500">Active academic term: {term.activeTerm ?? 'Loading…'}{term.historical && <> · Viewing selected term: {activeSemester}, A.Y. {activeYear} <button className="underline" onClick={term.reset}>Use active term</button></>}</p>
       {settings.error && <p role="alert" className="text-sm text-rose-500">{settings.error.message} <button type="button" className="underline" onClick={settings.reload}>Retry</button></p>}
       <ResourcePage
         eyebrow="Subjects"

@@ -38,7 +38,7 @@ export default function StudentPayments() {
               <>
                 <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <SummaryCard label="Total assessment" value={peso(a.total)} icon={Wallet} />
-                  <SummaryCard label="Amount paid" value={peso(a.paid)} icon={Wallet} />
+                  <SummaryCard label="Paid toward current term" value={peso(a.paid)} icon={Wallet} />
                   <SummaryCard label="Outstanding balance" value={peso(a.balance)} icon={Wallet} />
                   <SummaryCard label="Payment status" value={a.status} icon={Wallet} />
                 </section>
@@ -47,11 +47,12 @@ export default function StudentPayments() {
                   <InfoGrid columns="sm:grid-cols-3" items={[
                     { label: 'Tuition', value: a.tuitionPending ? 'Awaiting subjects' : peso(a.tuition) },
                     { label: 'Miscellaneous fees', value: peso(a.misc) },
+                    { label: 'Previous unpaid balance', value: peso(a.carryForward ?? 0) },
                     { label: 'Status', value: <StatusBadge status={a.status} /> },
                   ]} />
                 </Card>
               </>
-            ) : <Card><p className="text-sm text-slate-500">No assessment has been issued for this term yet.</p></Card>}
+            ) : <Card><p className="text-sm text-slate-500">No assessment has been issued for this term yet.</p>{data.previousBalance > 0 && <p className="mt-2 text-sm">Previous unpaid balance: {peso(data.previousBalance)}. This remains payable at the Cashier.</p>}</Card>}
 
             <Card>
               <div className="flex items-start gap-4">

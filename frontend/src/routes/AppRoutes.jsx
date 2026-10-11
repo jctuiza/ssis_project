@@ -32,6 +32,7 @@ import StudentsPage from '../pages/shared/StudentsPage'
 import RecordsPage from '../pages/shared/RecordsPage'
 import StaffDocuments from '../pages/shared/StaffDocuments'
 import StaffClearance from '../pages/shared/StaffClearance'
+import EnrollmentRequests from '../pages/shared/EnrollmentRequests'
 import { can } from '../config/permissions'
 
 const STUDENT_PAGES = {
@@ -59,6 +60,7 @@ const staffPages = (user) => ({
   settings: [['settings.manage'], () => <SettingsPage />],
   students: [['students.view'], () => <StudentsPage description={user.departmentId ? 'Students under your department.' : 'Search, register and review student records.'} />],
   enrollment: [['enrollment.manage'], () => <RegistrarEnrollment />],
+  'enrollment-requests': [['subjects.manage'], () => <EnrollmentRequests />],
   subjects: [['subjects.manage'], () => <RegistrarSubjects />],
   grades: [['grades.manage'], () => <RegistrarGrades />],
   clearance: [

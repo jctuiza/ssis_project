@@ -1,3 +1,4 @@
+import { termKey } from '../../utils/academicTerm'
 import AcademicYearPromotion from '../../components/forms/AcademicYearPromotion'
 import Select from '../../components/forms/Select'
 import ScreenSkeleton from '../../components/loading/ScreenSkeleton'
@@ -15,19 +16,20 @@ import * as adminService from '../../services/admin/adminService'
 
 // System settings and fee rates; new fee rates apply only to new assessments.
 export default function SettingsPage() {
-  const { data, loading, error } = useService(adminService.getSettings, [], "pages/admin/AdminPages.jsx:3")
+  const { data, loading, error, reload } = useService(adminService.getSettings, [], 'academic:settings')
   const { notify } = useToast()
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [values, setValues] = useState(null)
   const waiting = loading && data == null
-  const form = values ?? data ?? { systemName: '', currentTerm: '', academicTerms: [], tuitionPerUnit: '', miscFees: '', enrollmentOpen: false, documentRequestsOpen: false, emailNotifications: false, maintenanceMode: false }
+  const staleDraft = Boolean(values && data && termKey(values.sourceTerm) !== termKey(data.currentTerm))
+  const form = (staleDraft ? data : values ? { ...data, ...values.fields } : data) ?? { systemName: '', currentTerm: '', academicTerms: [], tuitionPerUnit: '', miscFees: '', enrollmentOpen: false, documentRequestsOpen: false, emailNotifications: false, maintenanceMode: false }
   const set = (key) => (value) => {
-    setValues({ ...form, [key]: value })
+    setValues({ sourceTerm: data?.currentTerm, fields: { ...(staleDraft ? {} : values?.fields), [key]: value } })
     setErrors((previous) => ({ ...previous, [key]: undefined }))
   }
   const save = async () => {
-    if (saving || !data) return
+    if (saving || !data || staleDraft) return
     const invalid = {}
     for (const key of ['tuitionPerUnit', 'miscFees']) {
       const raw = form[key]
@@ -38,8 +40,9 @@ export default function SettingsPage() {
     if (Object.keys(invalid).length) { setErrors(invalid); return }
     setSaving(true)
     try {
-      const updated = await adminService.saveSettings(form)
-      setValues(updated)
+      await adminService.saveSettings({ ...form, sourceTerm: values?.sourceTerm ?? data.currentTerm })
+      setValues(null)
+      await reload()
       setErrors({})
       notify('Settings saved.')
     } catch (error) {
@@ -51,7 +54,9 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader eyebrow="Settings" title="Settings" description="System-wide options for the student services portal. Closing enrollment or document requests takes effect for students immediately." />
+      <p className="text-sm text-slate-500">Active academic term: {data?.currentTerm ?? 'Loading…'}{values && !staleDraft && ' · Unsaved settings changes'}</p>
       <>
+      {staleDraft && <p role="alert" className="text-sm text-amber-600">The active academic term changed. Your old draft cannot be saved. <button className="underline" onClick={() => {setValues(null);setErrors({})}}>Discard old draft</button></p>}
       {error && <p role="alert" className="text-rose-500">{error.message}</p>}
         {form && (
           <Card>
@@ -70,13 +75,13 @@ export default function SettingsPage() {
               <Toggle label="Maintenance mode" description="Only administrators can log in." checked={form.maintenanceMode} onChange={set('maintenanceMode')} />
             </div>
             <div className="mt-5 flex justify-end">
-              <Button loading={saving} onClick={save}>Save settings</Button>
+              <Button disabled={staleDraft} loading={saving} onClick={save}>Save settings</Button>
             </div>
             </fieldset>
           </Card>
         )}
       </>
-      <AcademicYearPromotion />
+      <AcademicYearPromotion onActivated={async () => { setValues(null); setErrors({}); await reload() }} />
     </div>
   )
 }

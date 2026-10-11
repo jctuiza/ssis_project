@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\ActivityLog;
 use App\Models\Assessment;
 use App\Models\Clearance;
 use App\Models\Department;
@@ -84,6 +85,7 @@ class Resources
         $p = StudentProfile::where('user_id', $u->user_id)->first();
 
         return $base + [
+            'classification' => StudentStanding::classification($u),
             'enrolledOn' => $p?->enrolled_on?->toIso8601String(),
             'program' => $p?->program, 'yearLevel' => $p?->year_level, 'enrollmentStatus' => Rules::enrollmentStatusOf($u->user_id),
             'birthdate' => $p?->birthdate?->format('Y-m-d'), 'birthday' => Fmt::longDate($p?->birthdate), 'age' => Rules::ageOf($p?->birthdate),
@@ -103,7 +105,8 @@ class Resources
         $profile = StudentProfile::where('user_id', $e->student_id)->first();
 
         return [
-            'id' => $e->enrollment_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => $e->program_snapshot ?? $profile?->program ?? '',
+            'classification' => $s ? StudentStanding::classification($s) : null,
+            'assignmentMode' => $e->assignment_mode, 'id' => $e->enrollment_id, 'studentId' => $s?->username, 'studentName' => $s?->name, 'program' => $e->program_snapshot ?? $profile?->program ?? '',
             'yearLevel' => $e->year_level ? AcademicAssignments::label($e->year_level) : $profile?->year_level, 'departmentId' => $s?->department_id, 'term' => $e->term, 'status' => $e->status === 'Enrolled' ? 'Enrolled' : 'Not Enrolled',
             'subjects' => Rules::subjectCodesOf($e), 'units' => Rules::enrollmentUnits($e), 'submittedAt' => Fmt::date($e->submitted_at),
         ];
@@ -137,12 +140,14 @@ class Resources
     {
         $s = User::find($a->student_id);
         $paid = Rules::tuitionPaid($a->assessment_id);
-        $total = Rules::totalOf($a);
+        $carry = Rules::carryForward($a);
+        $total = Rules::totalOf($a) + $carry;
 
         return [
             'id' => $a->assessment_id, 'code' => 'ASM-'.str_pad((string) $a->assessment_id, 4, '0', STR_PAD_LEFT), 'studentId' => $s?->username,
             'studentName' => $s?->name, 'program' => self::programOf($a->student_id), 'departmentId' => $s?->department_id, 'term' => $a->term,
-            'tuition' => $a->tuition, 'misc' => $a->misc_fees, 'total' => $total, 'paid' => $paid, 'balance' => max(0.0, round($total - $paid, 2)),
+            'tuition' => $a->tuition, 'misc' => $a->misc_fees, 'total' => $total, 'paid' => $paid, 'balance' => Rules::amountDue($a),
+            'carryForward' => $carry, 'currentTermBalance' => Rules::balanceOf($a),
             'status' => Rules::paymentStatusOf($a), 'tuitionPending' => (bool) $a->tuition_pending,
             'paymentCount' => Transaction::where('assessment_id', $a->assessment_id)->where('type', 'tuition')->where('status', 'Paid')->count(),
         ];
@@ -188,7 +193,7 @@ class Resources
         ];
     }
 
-    public static function log(\App\Models\ActivityLog $l): array
+    public static function log(ActivityLog $l): array
     {
         $actor = $l->actor_id ? User::with('role')->find($l->actor_id) : null;
 

@@ -21,6 +21,7 @@ use App\Support\StudentProgression;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class TermSubjectsAndGradesTest extends TestCase
@@ -28,8 +29,11 @@ class TermSubjectsAndGradesTest extends TestCase
     use RefreshDatabase;
 
     private User $student;
+
     private User $staff;
+
     private User $admin;
+
     private int $department;
 
     protected function setUp(): void
@@ -143,7 +147,7 @@ class TermSubjectsAndGradesTest extends TestCase
         return [[1], [2], [3], [4]];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('promotionYears')]
+    #[DataProvider('promotionYears')]
     public function test_each_year_advances_once_and_new_year_subjects_use_updated_profile(int $year): void
     {
         $this->completedYear($year);
@@ -171,7 +175,7 @@ class TermSubjectsAndGradesTest extends TestCase
         $this->assertCount(2, $review['records']);
     }
 
-    public function test_failed_student_cannot_be_forced_into_promotion_and_new_entrant_stays_first_year(): void
+    public function test_failed_student_requires_explicit_irregular_approval_and_new_entrant_stays_first_year(): void
     {
         $this->completedYear(1, 50);
         Sanctum::actingAs($this->admin);

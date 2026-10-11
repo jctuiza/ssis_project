@@ -51,7 +51,7 @@ class GapFeaturesTest extends TestCase
         return User::create([
             'username' => $username, 'name' => $username, 'email' => $username.'@example.test',
             'password' => 'test-password', 'role_id' => Role::where('key', $role)->value('role_id'),
-            'must_change_password' => false, 'department_id' => Department::where('code', 'CCS')->value('department_id'),
+            'status' => 'Active', 'must_change_password' => false, 'department_id' => Department::where('code', 'CCS')->value('department_id'),
         ]);
     }
 
