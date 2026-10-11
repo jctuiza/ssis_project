@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ApiError;
 use App\Models\Assessment;
 use App\Models\Clearance;
 use App\Models\Department;
@@ -68,15 +69,21 @@ class ReportController extends ApiController
     public function report(Request $request, string $kind)
     {
         $user = $this->need($request, 'reports.view');
+        if (! in_array($kind, ['admin', 'registrar', 'cashier', 'department'], true)) {
+            throw new ApiError('Report not found.', 404);
+        }
+        if ($kind !== $user->role->key) {
+            throw new ApiError('You can only view reports for your assigned role.', 403);
+        }
         $dept = $this->scopeDepartment($user, $request->query('department_id'));
 
-        $students = User::whereHas('role', fn ($q) => $q->where('key', 'student'))->get();
+        $students = User::whereHas('role', fn ($q) => $q->where('key', 'student'))->when($dept, fn ($q) => $q->where('department_id', $dept))->get();
         $mine = $dept ? $students->where('department_id', $dept) : $students;
         $ids = $mine->pluck('user_id')->all();
         $requests = DocumentRequest::whereIn('student_id', $ids)->get();
-        $assessments = Assessment::where('term', Rules::currentTerm())->get();
-        $transactions = Transaction::all();
-        $clearances = Clearance::where('term', Rules::currentTerm())->get();
+        $assessments = Assessment::where('term', Rules::currentTerm())->whereIn('student_id', $ids)->get();
+        $transactions = Transaction::whereIn('student_id', $ids)->get();
+        $clearances = Clearance::where('term', Rules::currentTerm())->whereIn('student_id', $ids)->get();
 
         if ($kind === 'cashier') {
             return [
@@ -84,7 +91,7 @@ class ReportController extends ApiController
                     ['label' => 'Total collected', 'value' => Fmt::peso($transactions->where('status', 'Paid')->sum('amount'))],
                     ['label' => 'Outstanding balance', 'value' => Fmt::peso($assessments->sum(fn ($a) => Rules::balanceOf($a)))],
                     ['label' => 'Transactions', 'value' => $transactions->count()],
-                    ['label' => 'Accounts fully paid', 'value' => $assessments->filter(fn ($a) => Rules::balanceOf($a) <= 0)->count()],
+                    ['label' => 'Accounts fully paid', 'value' => $assessments->filter(fn ($a) => Rules::paymentStatusOf($a) === 'Fully Paid')->count()],
                 ],
                 'sections' => [
                     ['title' => 'Accounts by payment status', 'items' => $this->countBy($assessments, fn ($a) => Rules::paymentStatusOf($a))],
@@ -112,14 +119,14 @@ class ReportController extends ApiController
             ];
         }
         if ($kind === 'admin') {
-            $staff = User::with('role')->whereHas('role', fn ($q) => $q->where('key', '!=', 'student'))->get();
-            $all = DocumentRequest::all();
+            $staff = User::with('role')->whereHas('role', fn ($q) => $q->where('key', '!=', 'student'))->when($dept, fn ($q) => $q->where('department_id', $dept))->get();
+            $all = $requests;
 
             return [
                 'cards' => [
                     ['label' => 'Students', 'value' => $students->count()],
                     ['label' => 'Staff', 'value' => $staff->count()],
-                    ['label' => 'Departments', 'value' => Department::count()],
+                    ['label' => 'Departments', 'value' => Department::when($dept, fn ($q) => $q->where('department_id', $dept))->count()],
                     ['label' => 'Document requests', 'value' => $all->count()],
                 ],
                 'sections' => [
@@ -130,7 +137,7 @@ class ReportController extends ApiController
             ];
         }
         // registrar
-        $all = DocumentRequest::all();
+        $all = $requests;
 
         return [
             'cards' => [
@@ -140,7 +147,7 @@ class ReportController extends ApiController
                 ['label' => 'Pending clearances', 'value' => $clearances->where('status', '!=', 'Cleared')->count()],
             ],
             'sections' => [
-                ['title' => 'Enrollment by status', 'items' => $this->countBy(Enrollment::all(), fn ($e) => $e->status)],
+                ['title' => 'Enrollment by status', 'items' => $this->countBy(Enrollment::where('term', Rules::currentTerm())->whereIn('student_id', $ids)->get(), fn ($e) => $e->status)],
                 ['title' => 'Document requests by status', 'items' => $this->countBy($all, fn ($r) => $r->status)],
                 ['title' => 'Clearance by status', 'items' => $this->countBy($clearances, fn ($c) => $c->status)],
             ],

@@ -4,7 +4,7 @@ import { api, enc } from '../../api/apiClient'
 export const getTermsForStudent = (studentId) => api.get(`/grades/terms/${enc(studentId)}`)
 
 // GET /api/grades
-export const getAll = () => api.get('/grades')
+export const getAll = (filters = {}) => api.get('/grades', filters)
 
 // PATCH /api/grades/:id   { prelim, midterm, finals }   (percentages 0-100, null = not posted yet)
 export const updateGrade = (id, { prelim, midterm, finals }) => api.patch(`/grades/${id}`, { prelim, midterm, finals })

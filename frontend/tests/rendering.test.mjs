@@ -72,4 +72,19 @@ try {
     assert.ok(dept.includes('grades') && dept.includes('subjects'))
     assert.ok(!reg.includes('grades') && !reg.includes('subjects') && reg.includes('records') && reg.includes('enrollment'))
   })
+  const { default: AppRoutes } = await module('routes/AppRoutes.jsx')
+  const { SYSTEM_ROLE_PERMISSIONS } = await module('config/permissions.js')
+  for (const [role, permissions] of Object.entries(SYSTEM_ROLE_PERMISSIONS)) {
+    const account = { ...user, role, permissions, departmentId: role === 'department' ? 1 : null, clearanceOffices: ['Registrar', 'Cashier', 'Department'] }
+    for (const item of navFor(account)) {
+      await test(`${role}/${item.key} renders its initial portal state`, () => {
+        const tree = React.createElement(MemoryRouter, null, React.createElement(ToastProvider, null,
+          React.createElement(SessionProvider, { user: account, navigate: () => {}, logout: () => {}, updateUser: () => {} },
+            React.createElement(AppRoutes, { user: account, page: item.key }))))
+        const html = renderToStaticMarkup(tree)
+        assert.ok(html.length > 0)
+        assert.doesNotMatch(html, /Something went wrong/)
+      })
+    }
+  }
 } finally { await server.close() }

@@ -23,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Brute-force protection: 5 login attempts per minute for each username + IP address.
-        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(strtolower((string) $request->input('identifier')).'|'.$request->ip()));
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(strtolower(trim((string) $request->input('identifier'))).'|'.$request->ip()));
 
         // General API limit per signed-in user (or per IP address for anonymous calls).
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(240)->by($request->user()?->getAuthIdentifier() ?: $request->ip()));

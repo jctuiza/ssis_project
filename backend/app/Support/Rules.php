@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Exceptions\ApiError;
 use App\Models\ActivityLog;
 use App\Models\Assessment;
 use App\Models\Clearance;
@@ -12,11 +13,13 @@ use App\Models\EnrollmentSubject;
 use App\Models\Grade;
 use App\Models\Notification;
 use App\Models\Role;
-use App\Models\Subject;
 use App\Models\StudentProfile;
+use App\Models\Subject;
 use App\Models\SystemSetting;
 use App\Models\Transaction;
 use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -35,7 +38,6 @@ class Rules
     private const SETTINGS_KEY = 'ssis:settings:attributes:v1';
 
     private const CACHE_SECONDS = 600; // 10 minutes
-
 
     /**
      * The system settings are read on almost every request and change rarely, so they are cached (Redis when CACHE_STORE=redis).
@@ -63,9 +65,16 @@ class Rules
     public static function normalizedTerm(string $term): string
     {
         $parts = self::termParts($term);
-        if (!$parts) return $term;
+        if (! $parts) {
+            return $term;
+        }
         $terms = Enrollment::query()->distinct()->pluck('term')->merge(Assessment::query()->distinct()->pluck('term'));
-        foreach ($terms as $saved) if (self::termParts($saved) === $parts) return $saved;
+        foreach ($terms as $saved) {
+            if (self::termParts($saved) === $parts) {
+                return $saved;
+            }
+        }
+
         return ($parts[1] === 'First Semester' ? '1st' : '2nd').' Semester, A.Y. '.$parts[0];
     }
 
@@ -101,7 +110,7 @@ class Rules
         }
         $parts = self::termParts($enrollment->term);
         if (! $parts) {
-            throw new \App\Exceptions\ApiError('The enrollment term must include an academic year and First or Second Semester before grades can be created.');
+            throw new ApiError('The enrollment term must include an academic year and First or Second Semester before grades can be created.');
         }
         [$year, $semester] = $parts;
         $created = 0;
@@ -139,11 +148,12 @@ class Rules
     }
 
     /** Enrollment snapshots keep past units, names and schedules stable after catalog edits. */
-    public static function enrollmentSubjects(?Enrollment $enrollment): \Illuminate\Support\Collection
+    public static function enrollmentSubjects(?Enrollment $enrollment): Collection
     {
         if (! $enrollment) {
             return collect();
         }
+
         return EnrollmentSubject::where('enrollment_id', $enrollment->enrollment_id)
             ->orderBy('enrollment_subject_id')->get()->map(fn ($row) => [
                 'code' => $row->subject_code, 'name' => $row->subject_name,
@@ -151,12 +161,13 @@ class Rules
             ]);
     }
 
-    public static function offeredSubjects(?int $departmentId, ?string $program = null, ?int $yearLevel = null, ?string $term = null, ?string $legacyCurriculum = null): \Illuminate\Support\Collection
+    public static function offeredSubjects(?int $departmentId, ?string $program = null, ?int $yearLevel = null, ?string $term = null, ?string $legacyCurriculum = null): Collection
     {
         $parts = self::termParts($term ?? self::currentTerm());
         if (! $departmentId || ! $program || ! $yearLevel || $yearLevel < 1 || $yearLevel > 5 || ! $parts) {
             return collect();
         }
+
         return Subject::query()->where('department_id', $departmentId)->where('program', $program)
             ->where('semester', $parts[1])
             ->where(fn ($query) => $query->whereNull('academic_year')->orWhere('academic_year', $parts[0]))
@@ -254,7 +265,7 @@ class Rules
 
     public static function ageOf($birthdate): ?int
     {
-        return $birthdate ? (int) \Carbon\Carbon::parse($birthdate)->age : null;
+        return $birthdate ? (int) Carbon::parse($birthdate)->age : null;
     }
 
     public static function openFeeTransaction(DocumentRequest $r, DocumentType $type): Transaction
@@ -276,6 +287,7 @@ class Rules
     public static function ensureAssessment(User $student, ?string $term = null): ?Assessment
     {
         $term ??= self::currentTerm();
+
         return DB::transaction(function () use ($student, $term) {
             User::whereKey($student->user_id)->lockForUpdate()->firstOrFail();
             $enrollment = Enrollment::where('student_id', $student->user_id)->where('term', $term)->first();
@@ -287,6 +299,7 @@ class Rules
                     $existing->update(['tuition' => $tuition, 'tuition_pending' => $units === 0]);
                     self::notify('student', 'Your tuition assessment was updated to match your assigned subjects.', $student->user_id, page: 'payments');
                 }
+
                 return $existing;
             }
             $settings = self::settings();
@@ -295,7 +308,10 @@ class Rules
                 'tuition' => $units * $rate, 'misc_fees' => (float) ($settings->misc_fees ?? 6500),
                 'tuition_pending' => $units === 0, 'tuition_rate' => $rate,
             ]);
-            if ($a->wasRecentlyCreated) self::notify('student', 'Your enrollment assessment is available in Payments.', $student->user_id, page: 'payments');
+            if ($a->wasRecentlyCreated) {
+                self::notify('student', 'Your enrollment assessment is available in Payments.', $student->user_id, page: 'payments');
+            }
+
             return $a;
         });
     }
@@ -313,7 +329,9 @@ class Rules
         if (! $row) {
             return;
         }
-        if (StudentProfile::where('user_id', $studentId)->where('admission_term', self::currentTerm())->exists()) return;
+        if (StudentProfile::where('user_id', $studentId)->where('admission_term', self::currentTerm())->exists()) {
+            return;
+        }
         $a = self::assessmentFor($studentId);
         $balance = $a ? self::balanceOf($a) : null;
         $status = $a && ! $a->tuition_pending && $balance <= 0 ? 'Cleared' : 'Pending';
@@ -337,21 +355,27 @@ class Rules
     /** Address a notification to one user ($userId), a whole role, or one department's staff ($departmentId). */
     public static function notify(string $role, string $message, ?int $userId = null, ?int $departmentId = null, ?string $page = null): void
     {
-        if (! in_array($page, ['enrollment', 'payments', 'documents', 'clearance', 'grades', 'students', 'home'], true)) return;
+        if (! in_array($page, ['enrollment', 'payments', 'documents', 'clearance', 'grades', 'students', 'home', 'requests', 'document-fees'], true)) {
+            return;
+        }
         $roleId = self::roleId($role);
         if (! $roleId) {
             return;
         }
-        if (Notification::where('recipient_role_id', $roleId)->where('recipient_id', $userId)->where('department_id', $departmentId)->where('message', $message)->where('created_at', '>=', now()->subMinute())->exists()) return;
+        if (Notification::where('recipient_role_id', $roleId)->where('recipient_id', $userId)->where('department_id', $departmentId)->where('message', $message)->where('created_at', '>=', now()->subMinute())->exists()) {
+            return;
+        }
         Notification::create(['recipient_role_id' => $roleId, 'recipient_id' => $userId, 'department_id' => $departmentId, 'message' => $message, 'page' => $page]);
     }
 
     public static function logActivity(?User $actor, string $action, ?string $type = null, $id = null): void
     {
-        if (! self::auditable($actor, $action, $type)) return;
+        if (! self::auditable($actor, $action, $type)) {
+            return;
+        }
         $safe = [
-            'student'=>'Student record updated', 'enrollment'=>'Enrollment record updated', 'role'=>'Role configuration updated',
-            'settings'=>'System configuration updated', 'user'=>'Administrative account operation',
+            'student' => 'Student record updated', 'enrollment' => 'Enrollment record updated', 'role' => 'Role configuration updated',
+            'settings' => 'System configuration updated', 'user' => 'Administrative account operation',
         ];
         $action = $safe[$type] ?? $action;
         ActivityLog::create(['actor_id' => $actor?->user_id, 'action' => $action, 'entity_type' => $type, 'entity_id' => $id === null ? null : (string) $id]);
@@ -359,9 +383,14 @@ class Rules
 
     public static function auditable(?User $actor, string $action, ?string $type): bool
     {
-        if (! $actor || $actor->isStudent()) return false;
-        if (in_array($action, ['Updated own profile', 'Changed own password', 'Updated own profile picture', 'Removed own profile picture'], true)) return false;
-        return in_array($type, ['role','settings','student','enrollment','admission','security'], true)
+        if (! $actor || $actor->isStudent()) {
+            return false;
+        }
+        if (in_array($action, ['Updated own profile', 'Changed own password', 'Updated own profile picture', 'Removed own profile picture'], true)) {
+            return false;
+        }
+
+        return in_array($type, ['role', 'settings', 'student', 'enrollment', 'admission', 'security'], true)
             || ($type === 'user' && $actor->role->key === 'admin');
     }
 

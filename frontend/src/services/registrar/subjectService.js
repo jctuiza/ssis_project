@@ -2,7 +2,7 @@ import { api, enc } from '../../api/apiClient'
 
 // The subjects offered each term (Registrar). Students are enrolled in the subjects offered to their college.
 // GET /api/subjects
-export const getSubjects = () => api.get('/subjects')
+export const getSubjects = (filters = {}) => api.get('/subjects', filters)
 
 // POST /api/subjects   { code, name, units, schedule, departmentId }
 // Problems come back per field (ApiError.fields) so the form can show each message under its own input.

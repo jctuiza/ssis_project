@@ -42,7 +42,7 @@ const STUDENT_PAGES = {
 const DASHBOARDS = { admin: AdminDashboard, registrar: RegistrarDashboard, cashier: CashierDashboard, department: DepartmentDashboard }
 
 // Which statistics a role sees in Reports.
-const reportKind = (user) => (can(user, 'payments.manage') ? 'cashier' : can(user, 'users.manage') ? 'admin' : user.departmentId ? 'department' : 'registrar')
+const reportKind = (user) => user.role
 
 // Staff pages: page key -> [permissions that unlock it, render factory]. A page is shown only when the user's role has
 // at least one of the permissions. Roles are predefined by the system (see config/permissions.js).

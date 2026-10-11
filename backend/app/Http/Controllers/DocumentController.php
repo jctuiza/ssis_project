@@ -107,76 +107,82 @@ class DocumentController extends ApiController
     public function updateStatus(Request $request, string $ref)
     {
         $user = $this->need($request, 'documents.process', 'documents.review');
-        $row = DocumentRequest::where('reference_no', $ref)->first() ?? throw new ApiError('Request not found.', 404);
-        $student = User::findOrFail($row->student_id);
-        if (! $this->inScope($user, $student->user_id)) {
-            throw new ApiError('This request belongs to another department.', 403);
-        }
-        $status = (string) $request->input('status');
-        $remarks = mb_substr((string) $request->input('remarks', ''), 0, 500);
-        $canProcess = $this->can($user, 'documents.process');
-        $allowed = [$row->status, ...(($canProcess ? self::PROCESS_MOVES : self::REVIEW_MOVES)[$row->status] ?? [])];
-        if (! in_array($status, $allowed, true)) {
-            throw new ApiError("Your role cannot change a {$row->status} request to {$status}.");
-        }
 
-        $type = DocumentType::findOrFail($row->document_type_id);
-        $previousStatus = $row->status;
-        $previousRemarks = (string) $row->remarks;
-        $patch = ['remarks' => $remarks, 'processed_by' => $user->user_id];
-        $target = $status;
-        $forwarded = false;
+        return DB::transaction(function () use ($request, $ref, $user) {
+            $row = DocumentRequest::where('reference_no', $ref)->lockForUpdate()->first() ?? throw new ApiError('Request not found.', 404);
+            $student = User::findOrFail($row->student_id);
+            if (! $this->inScope($user, $student->user_id)) {
+                throw new ApiError('This request belongs to another department.', 403);
+            }
+            $status = (string) $request->input('status');
+            $remarks = mb_substr((string) $request->input('remarks', ''), 0, 500);
+            $canProcess = $this->can($user, 'documents.process');
+            $allowed = [$row->status, ...(($canProcess ? self::PROCESS_MOVES : self::REVIEW_MOVES)[$row->status] ?? [])];
+            if (! in_array($status, $allowed, true)) {
+                throw new ApiError("Your role cannot change a {$row->status} request to {$status}.");
+            }
 
-        DB::transaction(function () use ($row, $type, $status, $request, &$patch, &$target, &$forwarded) {
-            if ($status === 'Approved') {
-                $owes = $row->fee_amount > 0 && $row->fee_status !== 'Paid';
-                $target = $owes ? 'Pending Payment' : 'Processing';
-                $patch['prepared'] = $request->boolean('prepared');
-                if ($owes) {
-                    if (! Rules::documentFeeFor($row)) {
-                        Rules::openFeeTransaction($row, $type);
+            $type = DocumentType::findOrFail($row->document_type_id);
+            $previousStatus = $row->status;
+            $previousRemarks = (string) $row->remarks;
+            $patch = ['remarks' => $remarks, 'processed_by' => $user->user_id];
+            $target = $status;
+            $forwarded = false;
+
+            DB::transaction(function () use ($row, $type, $status, $request, &$patch, &$target, &$forwarded) {
+                if ($status === 'Approved') {
+                    $owes = $row->fee_amount > 0 && $row->fee_status !== 'Paid';
+                    $target = $owes ? 'Pending Payment' : 'Processing';
+                    $patch['prepared'] = $request->boolean('prepared');
+                    if (! $owes && $row->fee_amount <= 0) {
+                        $patch['fee_status'] = 'Waived';
                     }
-                    $forwarded = true;
+                    if ($owes) {
+                        if (! Rules::documentFeeFor($row)) {
+                            Rules::openFeeTransaction($row, $type);
+                        }
+                        $forwarded = true;
+                    }
                 }
+                if (in_array($target, ['Ready for Release', 'Completed'], true) && $row->fee_amount > 0 && $row->fee_status !== 'Paid') {
+                    throw new ApiError('The document fee must be paid at the Cashier before this request can be released.');
+                }
+                if ($target === 'Rejected' && $row->fee_status === 'Unpaid') {
+                    $patch['fee_status'] = 'Waived';
+                    Transaction::where('document_request_id', $row->document_request_id)->where('status', 'Pending')->update(['status' => 'Cancelled']);
+                }
+                $patch['status'] = $target;
+                $row->update($patch);
+            });
+
+            $statusChanged = $target !== $previousStatus;
+            $remarksChanged = $remarks !== $previousRemarks;
+            $name = "{$type->name} request ({$ref})";
+            $to = fn (string $message, string $page = 'documents') => Rules::notify('student', $message, $student->user_id, page: $page);
+
+            if ($statusChanged) {
+                if ($status === 'Approved') {
+                    $to("Your {$name} was approved.");
+                }
+                if ($forwarded) {
+                    $to("Your {$name} was sent to the Cashier. Please pay the ".Fmt::peso($row->fee_amount)." fee in person at the Cashier's Office.");
+                    Rules::notify('cashier', "{$student->name}'s {$type->name} ({$ref}) was approved. Fee of ".Fmt::peso($row->fee_amount).' is waiting for payment.', page: 'document-fees');
+                }
+                match ($target) {
+                    'Under Review' => $to("Your {$name} is now under review."),
+                    'Processing' => $to("Your {$name} is now being processed."),
+                    'Ready for Release' => $to("Your {$name} is ready for release. You may claim it at the Registrar's window."),
+                    'Completed' => $to("Your {$name} is completed and released."),
+                    'Rejected' => $to("Your {$name} was rejected.".($remarks !== '' ? " Reason: {$remarks}" : '')),
+                    default => null,
+                };
+                $this->log($request, $status === 'Approved' ? "Approved {$ref}".($forwarded ? ' and sent it to the Cashier' : '') : "Updated {$ref} to {$target}", 'document_request', $ref);
+            } elseif ($remarksChanged) {
+                $to("Your {$name} has a new remark.");
+                $this->log($request, "Updated remarks of {$ref}", 'document_request', $ref);
             }
-            if (in_array($target, ['Ready for Release', 'Completed'], true) && $row->fee_status !== 'Paid') {
-                throw new ApiError('The document fee must be paid at the Cashier before this request can be released.');
-            }
-            if ($target === 'Rejected' && $row->fee_status === 'Unpaid') {
-                $patch['fee_status'] = 'Waived';
-                Transaction::where('document_request_id', $row->document_request_id)->where('status', 'Pending')->update(['status' => 'Cancelled']);
-            }
-            $patch['status'] = $target;
-            $row->update($patch);
+
+            return Resources::document($row->fresh());
         });
-
-        $statusChanged = $target !== $previousStatus;
-        $remarksChanged = $remarks !== $previousRemarks;
-        $name = "{$type->name} request ({$ref})";
-        $to = fn (string $message, string $page = 'documents') => Rules::notify('student', $message, $student->user_id, page: $page);
-
-        if ($statusChanged) {
-            if ($status === 'Approved') {
-                $to("Your {$name} was approved.");
-            }
-            if ($forwarded) {
-                $to("Your {$name} was sent to the Cashier. Please pay the ".Fmt::peso($row->fee_amount)." fee in person at the Cashier's Office.");
-                Rules::notify('cashier', "{$student->name}'s {$type->name} ({$ref}) was approved. Fee of ".Fmt::peso($row->fee_amount).' is waiting for payment.', page: 'document-fees');
-            }
-            match ($target) {
-                'Under Review' => $to("Your {$name} is now under review."),
-                'Processing' => $to("Your {$name} is now being processed."),
-                'Ready for Release' => $to("Your {$name} is ready for release. You may claim it at the Registrar's window."),
-                'Completed' => $to("Your {$name} is completed and released."),
-                'Rejected' => $to("Your {$name} was rejected.".($remarks !== '' ? " Reason: {$remarks}" : '')),
-                default => null,
-            };
-            $this->log($request, $status === 'Approved' ? "Approved {$ref}".($forwarded ? ' and sent it to the Cashier' : '') : "Updated {$ref} to {$target}", 'document_request', $ref);
-        } elseif ($remarksChanged) {
-            $to("Your {$name} has a new remark.");
-            $this->log($request, "Updated remarks of {$ref}", 'document_request', $ref);
-        }
-
-        return Resources::document($row->fresh());
     }
 }

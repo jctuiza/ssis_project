@@ -2,6 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicProgram;
+use App\Models\Assessment;
+use App\Models\Department;
+use App\Models\DocumentRequest;
+use App\Models\DocumentType;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSubject;
 use App\Models\Grade;
@@ -11,6 +16,7 @@ use App\Models\Subject;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\Rules;
+use Database\Seeders\AcademicProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Sanctum\Sanctum;
@@ -33,10 +39,10 @@ class GapFeaturesTest extends TestCase
         Role::where('key', 'registrar')->first()->permissions()->sync(Permission::whereIn('key', ['enrollment.manage'])->pluck('permission_id'));
         Role::where('key', 'admin')->first()->permissions()->sync(Permission::where('key', 'settings.manage')->pluck('permission_id'));
         Role::where('key', 'cashier')->first()->permissions()->sync(Permission::where('key', 'payments.manage')->pluck('permission_id'));
-        Role::where('key','department')->first()->permissions()->sync(Permission::whereIn('key',['grades.manage','subjects.manage'])->pluck('permission_id'));
-        \App\Models\Department::create(['code'=>'CCS','name'=>'College of Computer Studies']);
-        (new \Database\Seeders\AcademicProgramSeeder)->run();
-        \App\Models\AcademicProgram::query()->update(['duration_years'=>4,'promotion_pass_mark'=>75]);
+        Role::where('key', 'department')->first()->permissions()->sync(Permission::whereIn('key', ['grades.manage', 'subjects.manage'])->pluck('permission_id'));
+        Department::create(['code' => 'CCS', 'name' => 'College of Computer Studies']);
+        (new AcademicProgramSeeder)->run();
+        AcademicProgram::query()->update(['duration_years' => 4, 'promotion_pass_mark' => 75]);
         SystemSetting::create(['system_name' => 'SSIS', 'current_term' => '1st Semester, A.Y. 2026–2027']);
     }
 
@@ -45,27 +51,28 @@ class GapFeaturesTest extends TestCase
         return User::create([
             'username' => $username, 'name' => $username, 'email' => $username.'@example.test',
             'password' => 'test-password', 'role_id' => Role::where('key', $role)->value('role_id'),
-            'must_change_password' => false, 'department_id'=>\App\Models\Department::where('code','CCS')->value('department_id'),
+            'must_change_password' => false, 'department_id' => Department::where('code', 'CCS')->value('department_id'),
         ]);
     }
 
     private function enrolled(User $student): Enrollment
     {
-        $subject = Subject::create(['subject_code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'department_id'=>1, 'program'=>'BS Information Technology','year_level'=>1,'semester'=>'First Semester','curriculum'=>'Current']);
+        $subject = Subject::create(['subject_code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'department_id' => 1, 'program' => 'BS Information Technology', 'year_level' => 1, 'semester' => 'First Semester', 'curriculum' => 'Current']);
         $enrollment = Enrollment::create(['student_id' => $student->user_id, 'term' => Rules::currentTerm(), 'status' => 'Enrolled']);
         EnrollmentSubject::create([
             'enrollment_id' => $enrollment->enrollment_id, 'subject_code' => $subject->subject_code,
             'subject_name' => $subject->name, 'units' => $subject->units, 'schedule' => null,
         ]);
+
         return $enrollment;
     }
 
     public function test_subject_crud_is_scoped_to_department_permission(): void
     {
         Sanctum::actingAs($this->user('department', 'department-test'));
-        $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'departmentId'=>1, 'program'=>'BS Information Technology','yearLevel'=>1,'semester'=>'First Semester','curriculum'=>'Current'])->assertOk()->assertJsonPath('code', 'IT101');
+        $this->postJson('/api/subjects', ['code' => 'IT101', 'name' => 'Computing', 'units' => 3, 'departmentId' => 1, 'program' => 'BS Information Technology', 'yearLevel' => 1, 'semester' => 'First Semester', 'curriculum' => 'Current'])->assertOk()->assertJsonPath('code', 'IT101');
         $this->getJson('/api/subjects')->assertOk()->assertJsonCount(1);
-        $this->patchJson('/api/subjects/IT101', ['name' => 'Web Development', 'units' => 4, 'departmentId'=>1, 'program'=>'BS Information Technology','yearLevel'=>1,'semester'=>'First Semester','curriculum'=>'Current'])->assertOk()->assertJsonPath('name', 'Web Development');
+        $this->patchJson('/api/subjects/IT101', ['name' => 'Web Development', 'units' => 4, 'departmentId' => 1, 'program' => 'BS Information Technology', 'yearLevel' => 1, 'semester' => 'First Semester', 'curriculum' => 'Current'])->assertOk()->assertJsonPath('name', 'Web Development');
         $this->deleteJson('/api/subjects/IT101')->assertOk();
         $this->assertDatabaseMissing('subjects', ['subject_code' => 'IT101']);
     }
@@ -121,10 +128,10 @@ class GapFeaturesTest extends TestCase
         $student = $this->user('student', 'student-test');
         $enrollment = $this->enrolled($student);
         Sanctum::actingAs($this->user('department', 'department-test'));
-        $this->patchJson('/api/subjects/IT101', ['name' => 'New catalog name', 'units' => 5, 'departmentId'=>1, 'program'=>'BS Information Technology','yearLevel'=>1,'semester'=>'First Semester','curriculum'=>'Current'])->assertOk();
+        $this->patchJson('/api/subjects/IT101', ['name' => 'New catalog name', 'units' => 5, 'departmentId' => 1, 'program' => 'BS Information Technology', 'yearLevel' => 1, 'semester' => 'First Semester', 'curriculum' => 'Current'])->assertOk();
         $this->assertSame(3, Rules::enrollmentUnits($enrollment));
         Rules::createGradeRows($student);
-        $this->assertDatabaseHas('grades', ['course_code'=>'IT101','description'=>'Computing','units'=>3]);
+        $this->assertDatabaseHas('grades', ['course_code' => 'IT101', 'description' => 'Computing', 'units' => 3]);
         $this->deleteJson('/api/subjects/IT101')->assertStatus(422);
     }
 
@@ -164,6 +171,7 @@ class GapFeaturesTest extends TestCase
         Role::where('key', 'registrar')->first()->update(['label' => 'Updated Registrar']);
         $this->getJson('/api/roles/public')->assertOk()->assertHeader('X-Cache', 'MISS');
     }
+
     public function test_cashier_sees_unpaid_students_before_any_transaction_exists(): void
     {
         $student = $this->user('student', 'student-pending');
@@ -188,10 +196,66 @@ class GapFeaturesTest extends TestCase
         $student = $this->user('student', 'student-history');
         $this->enrolled($student);
         Rules::ensureAssessment($student);
-        \App\Models\Assessment::create(['student_id' => $student->user_id, 'term' => '2nd Semester, A.Y. 2025-2026', 'tuition' => 1000, 'misc_fees' => 0]);
+        Assessment::create(['student_id' => $student->user_id, 'term' => '2nd Semester, A.Y. 2025-2026', 'tuition' => 1000, 'misc_fees' => 0]);
         Sanctum::actingAs($this->user('cashier', 'cashier-history'));
 
         $this->getJson('/api/assessments')->assertOk()->assertJsonCount(1);
         $this->getJson('/api/dashboard/cashier')->assertOk()->assertJsonPath('totals.pending', 1);
+    }
+
+    public function test_report_kind_cannot_bypass_role_access(): void
+    {
+        $permission = Permission::firstOrCreate(['key' => 'reports.view'], ['label' => 'Reports', 'group' => 'Tests']);
+        Role::where('key', 'department')->first()->permissions()->attach($permission->permission_id);
+        Sanctum::actingAs($this->user('department', 'report-staff'));
+        $this->getJson('/api/reports/cashier')->assertForbidden();
+        $this->getJson('/api/reports/admin')->assertForbidden();
+        $this->getJson('/api/reports/registrar')->assertForbidden();
+        $this->getJson('/api/reports/unknown')->assertNotFound();
+        $this->getJson('/api/reports/department')->assertOk();
+    }
+
+    public function test_cashier_and_department_document_notifications_are_retained(): void
+    {
+        $cashier = $this->user('cashier', 'notification-cashier');
+        $department = $this->user('department', 'notification-department');
+        Rules::notify('cashier', 'Document fee waiting.', page: 'document-fees');
+        Rules::notify('department', 'Document request waiting.', departmentId: $department->department_id, page: 'requests');
+        $this->assertSame('document-fees', Rules::feedFor($cashier)[0]['page']);
+        $this->assertSame('requests', Rules::feedFor($department)[0]['page']);
+    }
+
+    public function test_free_document_can_be_processed_and_released_without_payment(): void
+    {
+        $permission = Permission::firstOrCreate(['key' => 'documents.process'], ['label' => 'Documents', 'group' => 'Tests']);
+        Role::where('key', 'registrar')->first()->permissions()->attach($permission->permission_id);
+        $student = $this->user('student', 'free-document-student');
+        $type = DocumentType::create(['name' => 'Free certificate', 'fee' => 0, 'processing_time' => 'One day']);
+        DocumentRequest::create([
+            'reference_no' => 'REQ-free-test', 'student_id' => $student->user_id,
+            'document_type_id' => $type->document_type_id, 'purpose' => 'Testing',
+            'status' => 'Under Review', 'fee_amount' => 0, 'fee_status' => 'Unpaid',
+        ]);
+        Sanctum::actingAs($this->user('registrar', 'free-document-registrar'));
+        $url = '/api/documents/REQ-free-test';
+        $this->patchJson($url, ['status' => 'Approved'])->assertOk()->assertJsonPath('status', 'Processing')->assertJsonPath('feeStatus', 'Waived');
+        $this->patchJson($url, ['status' => 'Approved'])->assertStatus(422);
+        $this->patchJson($url, ['status' => 'Ready for Release'])->assertOk();
+        $this->patchJson($url, ['status' => 'Completed'])->assertOk();
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_install_command_is_registered(): void
+    {
+        $this->artisan('list', ['--raw' => true])->expectsOutputToContain('ssis:install')->assertExitCode(0);
+    }
+
+    public function test_login_rate_limit_normalizes_identifier_whitespace(): void
+    {
+        $this->user('student', 'rate-student');
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->postJson('/api/login', ['role' => 'student', 'identifier' => str_repeat(' ', $attempt).'RATE-STUDENT', 'password' => 'incorrect-password'])->assertUnauthorized();
+        }
+        $this->postJson('/api/login', ['role' => 'student', 'identifier' => 'rate-student ', 'password' => 'incorrect-password'])->assertStatus(429);
     }
 }

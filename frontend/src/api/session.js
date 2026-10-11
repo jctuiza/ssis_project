@@ -13,30 +13,33 @@ export class ApiError extends Error {
 }
 
 const KEY = 'ssis-token'
+let memoryToken = null
 
 export const tokenStore = {
   get: () => {
     try {
-      return sessionStorage.getItem(KEY)
+      return sessionStorage.getItem(KEY) ?? memoryToken
     } catch {
-      return null
+      return memoryToken
     }
   },
   set: (token) => {
+    memoryToken = token
     try {
       sessionStorage.setItem(KEY, token)
-      window.dispatchEvent(new Event('ssis:session-changed'))
     } catch {
-      // Storage unavailable: the user simply has to log in again after a refresh.
+      // The in-memory token lasts until this page is refreshed.
     }
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('ssis:session-changed'))
   },
   clear: () => {
+    memoryToken = null
     try {
       sessionStorage.removeItem(KEY)
-      window.dispatchEvent(new Event('ssis:session-changed'))
     } catch {
       // ignore
     }
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('ssis:session-changed'))
   },
 }
 
