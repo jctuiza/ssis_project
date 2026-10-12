@@ -18,6 +18,14 @@ use App\Http\Controllers\SubjectController;
 use App\Http\Middleware\ValidatePortalSession;
 use Illuminate\Support\Facades\Route;
 
+
+Route::get('/debug-response', function () {
+    return response()->json([
+        'success' => true,
+        'message' => 'Laravel API is responding correctly',
+    ]);
+});
+
 Route::get('admissions/options', [AdmissionController::class, 'options'])->middleware('throttle:60,1');
 Route::post('admissions', [AdmissionController::class, 'store'])->middleware('throttle:5,1');
 
