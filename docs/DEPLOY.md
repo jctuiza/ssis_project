@@ -25,9 +25,13 @@ the migrations in `backend/database/migrations/`.
 | `APP_TIMEZONE`, `DB_TIMEZONE` | `Asia/Manila`, `+08:00` |
 | `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | the first Admin account |
 | `FRONTEND_URL` | the Vercel address (add it after step 3, then redeploy) |
+
+4. Deploy. After deployment, run the database migrations:
+
+```bash
 php artisan migrate --force
 
-4. Deploy. The first start takes a few minutes. The free service sleeps after about 15 minutes without requests.
+The first start takes a few minutes. The free service sleeps after about 15 minutes without requests.
 
 ## 3. Front end on Vercel
 1. vercel.com > Add New > Project > import the same repository.

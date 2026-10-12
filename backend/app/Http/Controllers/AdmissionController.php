@@ -16,7 +16,7 @@ class AdmissionController extends ApiController {
     }
     private function resource(AdmissionApplication $a): array {
         return ['id'=>$a->id,'reference'=>$a->reference,'name'=>trim($a->first_name.' '.($a->middle_name ? $a->middle_name.' ' : '').$a->last_name),
-            'email'=>$a->email,'contact'=>$a->contact,'birthdate'=>$a->birthdate->format('Y-m-d'),'gender'=>$a->gender,
+            'email'=>$a->email,'contact'=>$a->contact,'birthdate'=>$a->birthdate instanceof \DateTimeInterface ? $a->birthdate->format('Y-m-d') : (string) $a->birthdate,'gender'=>$a->gender,
             'departmentId'=>$a->department_id,'department'=>Resources::deptCode($a->department_id),'program'=>$a->program,
             'term'=>$a->term,'status'=>$a->status,'appliedOn'=>$a->created_at->toIso8601String(),'reviewedOn'=>$a->reviewed_at?->toIso8601String(),
             'decisionNote'=>$a->decision_note,'credentialsAvailable'=>(bool)($a->credential_payload && $a->credentials_expires_at?->isFuture()),'credentialsEmailedOn'=>$a->credentials_emailed_at?->toIso8601String(),'emailStatus'=>$a->credential_email_status,'emailAttempts'=>$a->credential_email_attempts,'emailError'=>$a->credential_email_error];
@@ -50,7 +50,9 @@ class AdmissionController extends ApiController {
     public function index(Request $r) {
         $actor=$this->need($r,'enrollment.manage');
         if ($actor->role->key !== 'registrar') throw new ApiError('Only the Registrar can review applications.',403);
-        return AdmissionApplication::orderByDesc('id')->get()->map(fn($a)=>$this->resource($a));
+        return AdmissionApplication::orderByDesc('id')->get()->map(function (AdmissionApplication $a): array {
+            return $this->resource($a);
+        });
     }
     private function requirements(AdmissionApplication $application): array
     {
