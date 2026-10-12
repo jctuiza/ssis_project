@@ -26,6 +26,12 @@ RUN sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" \
     /etc/apache2/apache2.conf \
     /etc/apache2/conf-available/*.conf
 
+RUN printf '<Directory /var/www/html/public>\n\
+    AllowOverride All\n\
+    Require all granted\n\
+</Directory>\n' > /etc/apache2/conf-available/laravel.conf \
+    && a2enconf laravel
+
 WORKDIR /var/www/html
 
 # Copy Laravel application.
