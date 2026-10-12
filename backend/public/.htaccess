@@ -5,6 +5,15 @@
 
     RewriteEngine On
 
+    # Allow requests from the deployed SSIS frontend.
+    SetEnvIf Origin "^https://ssis-project\.vercel\.app$" SSIS_CORS_ORIGIN=$0
+
+    Header always set Access-Control-Allow-Origin "https://ssis-project.vercel.app" env=SSIS_CORS_ORIGIN
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" env=SSIS_CORS_ORIGIN
+    Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With, X-XSRF-TOKEN" env=SSIS_CORS_ORIGIN
+    Header always set Vary "Origin"
+
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
