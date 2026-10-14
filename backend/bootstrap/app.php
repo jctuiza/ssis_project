@@ -2,11 +2,13 @@
 
 use App\Console\Commands\InstallSsis;
 use App\Exceptions\ApiError;
+use App\Http\Middleware\AuthenticatePortalCookie;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Request;
 use Illuminate\Http\Middleware\HandleCors;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Behind Render's / Vercel's proxy the real client IP (used by the login rate limiter) is in X-Forwarded-For.
         $middleware->prepend(HandleCors::class);
+        $middleware->api(prepend: [AuthenticatePortalCookie::class]);
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, AuthenticatePortalCookie::class);
 
         $middleware->trustProxies(at: '*');
     })

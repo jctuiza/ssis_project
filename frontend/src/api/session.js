@@ -1,8 +1,3 @@
-// Shared by every service: the error type thrown for failed API calls and the sign-in token store.
-// The login token lives in sessionStorage, so closing the tab signs the user out; permissions are enforced by Laravel.
-
-// `fields` is an optional { fieldKey: 'message' } object (Laravel's 422 validation `errors`),
-// so forms can show each message under the matching input.
 export class ApiError extends Error {
   constructor(message, status = 422, fields = null) {
     super(message)
@@ -12,35 +7,44 @@ export class ApiError extends Error {
   }
 }
 
-const KEY = 'ssis-token'
-let memoryToken = null
-
+// Shared storage holds only a non-secret marker. Authentication lives in the
+// encrypted HttpOnly API cookie; account data is verified by /me and kept in memory.
+const KEY = 'ssis-session'
+const LEGACY_KEY = 'ssis-token'
+let memorySession = null
+const changed = () => {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('ssis:session-changed'))
+}
+const legacy = () => {
+  try { return sessionStorage.getItem(LEGACY_KEY) ?? localStorage.getItem(LEGACY_KEY) } catch { return null }
+}
 export const tokenStore = {
   get: () => {
-    try {
-      return sessionStorage.getItem(KEY) ?? memoryToken
-    } catch {
-      return memoryToken
-    }
+    try { return localStorage.getItem(KEY) ?? legacy() } catch { return memorySession }
   },
-  set: (token) => {
-    memoryToken = token
+  legacy,
+  set: (session) => {
+    const previous = tokenStore.get()
+    memorySession = session
     try {
-      sessionStorage.setItem(KEY, token)
-    } catch {
-      // The in-memory token lasts until this page is refreshed.
-    }
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event('ssis:session-changed'))
+      localStorage.setItem(KEY, session)
+      localStorage.removeItem(LEGACY_KEY)
+      sessionStorage.removeItem(LEGACY_KEY)
+    } catch { /* Blocked storage keeps the marker in memory. */ }
+    if (previous !== session) changed()
   },
   clear: () => {
-    memoryToken = null
-    try {
-      sessionStorage.removeItem(KEY)
-    } catch {
-      // ignore
-    }
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event('ssis:session-changed'))
+    memorySession = null
+    try { localStorage.removeItem(KEY); localStorage.removeItem(LEGACY_KEY); sessionStorage.removeItem(LEGACY_KEY) } catch { /* Storage may be blocked. */ }
+    changed()
   },
 }
-
-
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key === KEY || event.key === null) {
+      memorySession = null
+      try { sessionStorage.removeItem(LEGACY_KEY) } catch { /* Storage may be blocked. */ }
+      changed()
+    }
+  })
+}

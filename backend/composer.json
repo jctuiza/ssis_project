@@ -15,7 +15,10 @@
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
         "phpmailer/phpmailer": "^7.0",
-        "predis/predis": "^3.7"
+        "predis/predis": "^3.7",
+        "resend/resend-php": "^1.16",
+        "symfony/brevo-mailer": "*",
+        "symfony/http-client": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

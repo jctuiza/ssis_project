@@ -4,10 +4,11 @@ import { tokenStore } from '../src/api/session.js'
 import { cache } from '../src/api/cache.js'
 
 await test('blocked browser storage retains the current token and signals login/logout', () => {
-  const storage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+  const storage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
   const win = Object.getOwnPropertyDescriptor(globalThis, 'window')
   const events = []
-  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, get() { throw new Error('Blocked') } })
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('Blocked') } })
+  globalThis.sessionStorage = { getItem:()=>null, removeItem(){} }
   globalThis.window = { dispatchEvent: event => events.push(event.type) }
   try {
     tokenStore.set('test-token')
@@ -16,18 +17,18 @@ await test('blocked browser storage retains the current token and signals login/
     assert.equal(tokenStore.get(), null)
     assert.deepEqual(events, ['ssis:session-changed', 'ssis:session-changed'])
   } finally {
-    if (storage) Object.defineProperty(globalThis, 'sessionStorage', storage); else delete globalThis.sessionStorage
+    if (storage) Object.defineProperty(globalThis, 'localStorage', storage); else delete globalThis.localStorage
     if (win) Object.defineProperty(globalThis, 'window', win); else delete globalThis.window
   }
 })
 await test('working browser storage persists the token and clears it', () => {
   const values = new Map()
-  globalThis.sessionStorage = { getItem: k => values.get(k) ?? null, setItem: (k,v) => values.set(k,v), removeItem: k => values.delete(k) }
+  globalThis.localStorage = { getItem: k => values.get(k) ?? null, setItem: (k,v) => values.set(k,v), removeItem: k => values.delete(k) }
   try {
-    tokenStore.set('stored-token'); assert.equal(values.get('ssis-token'), 'stored-token')
+    tokenStore.set('stored-token'); assert.equal(values.get('ssis-session'), 'stored-token')
     assert.equal(tokenStore.get(), 'stored-token')
-    tokenStore.clear(); assert.equal(values.has('ssis-token'), false)
-  } finally { delete globalThis.sessionStorage }
+    tokenStore.clear(); assert.equal(values.has('ssis-session'), false)
+  } finally { delete globalThis.localStorage;delete globalThis.sessionStorage }
 })
 await test('simultaneous resource loads share one request', async () => {
   cache.clear()

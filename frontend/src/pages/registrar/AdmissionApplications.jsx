@@ -67,7 +67,7 @@ export default function AdmissionApplications() {
 
       if (result.credentials) {
         setCredentials({ ...result, id: decision.row.id })
-        setMailMessage('')
+        setMailMessage(result.emailMessage ?? '')
       }
 
       notify(`Application ${decision.status.toLowerCase()}.`)
@@ -449,7 +449,7 @@ export default function AdmissionApplications() {
             </Button>
             <Button
               loading={emailing}
-              disabled={!credentials?.emailConfigured}
+              disabled={!credentials?.emailConfigured || Boolean(credentials?.credentialsEmailedOn)}
               onClick={sendCredentials}
             >
               Send Credentials

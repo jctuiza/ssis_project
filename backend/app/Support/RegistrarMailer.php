@@ -1,22 +1,47 @@
 <?php
+
 namespace App\Support;
-use PHPMailer\PHPMailer\PHPMailer;
-class RegistrarMailer {
-    public function configured(): bool {
-        return class_exists(PHPMailer::class) && filled(config('registrar_mail.host'))
-            && filled(config('registrar_mail.from')) && filled(config('registrar_mail.login_url'))
-            && in_array(config('registrar_mail.encryption'),['tls','ssl'],true);
+
+use Aws\Ses\SesClient;
+use Illuminate\Mail\Message;
+use Illuminate\Support\Facades\Mail;
+use LogicException;
+use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
+use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkTransportFactory;
+
+class RegistrarMailer
+{
+    public function configured(): bool
+    {
+        $mailer = config('mail.default');
+        $transport = config('mail.mailers.'.$mailer.'.transport');
+        if (! filled(config('mail.from.address')) || ! filter_var(config('registrar_mail.login_url'), FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        // Credential messages must never be routed to a logging or memory transport.
+        return match ($transport) {
+            'smtp' => filled(config('mail.mailers.'.$mailer.'.host')) || filled(config('mail.mailers.'.$mailer.'.url')),
+            'sendmail' => filled(config('mail.mailers.'.$mailer.'.path')),
+            'brevo' => class_exists(BrevoTransportFactory::class) && filled(config('services.brevo.key')),
+            'resend' => class_exists(\Resend::class) && filled(config('services.resend.key')),
+            'postmark' => class_exists(PostmarkTransportFactory::class) && filled(config('services.postmark.key')),
+            'ses', 'ses-v2' => class_exists(SesClient::class) && filled(config('services.ses.key')) && filled(config('services.ses.secret')),
+            default => false,
+        };
     }
-    public function send(string $email, array $credentials): void {
-        $mail=new PHPMailer(true);$mail->isSMTP();$mail->SMTPDebug=0;
-        $mail->Host=config('registrar_mail.host');$mail->Port=(int)config('registrar_mail.port');
-        $mail->SMTPAuth=(bool)config('registrar_mail.auth');
-        $mail->Username=(string)config('registrar_mail.username');$mail->Password=(string)config('registrar_mail.password');
-        $mail->SMTPSecure=config('registrar_mail.encryption') === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Timeout=20;$mail->CharSet='UTF-8';
-        $mail->setFrom(config('registrar_mail.from'),config('registrar_mail.from_name'));
-        $mail->addAddress($email);$mail->Subject='SSIS student login credentials';
-        $mail->Body="Your SSIS enrollment is confirmed.\n\nStudent ID: {$credentials['studentNumber']}\nUsername: {$credentials['username']}\nTemporary password: {$credentials['temporaryPassword']}\nStudent login: ".config('registrar_mail.login_url')."\n\nChange your password on first login. Keep these details private.";
-        $mail->send();
+
+    public function send(string $email, array $credentials): void
+    {
+        if (! $this->configured()) {
+            throw new LogicException('A delivery mailer must be configured for credential emails.');
+        }
+        $body = "Your SSIS enrollment is confirmed.\n\nStudent ID: {$credentials['studentNumber']}\nUsername: {$credentials['username']}\nTemporary password: {$credentials['temporaryPassword']}\nStudent login: ".config('registrar_mail.login_url')."\n\nChange your password on first login. Keep these details private.";
+        $sent = Mail::mailer(config('mail.default'))->raw($body, function (Message $message) use ($email): void {
+            $message->to($email)->subject('SSIS student login credentials');
+        });
+        if (! $sent) {
+            throw new LogicException('The delivery mailer did not accept the credential message.');
+        }
     }
 }

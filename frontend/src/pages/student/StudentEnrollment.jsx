@@ -65,6 +65,12 @@ export default function StudentEnrollment() {
               <p className="text-sm text-slate-500 dark:text-slate-400">{!data.enrollmentOpen ? 'Enrollment is currently closed.' : (data.classification === 'Irregular' || data.enrollment?.assignmentMode === 'manual') && !data.reviewApproved ? 'Department review and Registrar subject approval are required before you can confirm. Follow your enrollment request above.' : data.pendingOffices?.length ? `Complete clearance from: ${data.pendingOffices.join(', ')}. Please clear all required clearances before enrolling.` : 'All offices have cleared you. Confirm enrollment below once your subject assignment is ready.'}</p>
               {data.canSubmit && <Button className="mt-4" onClick={() => setConfirming(true)}>Enroll</Button>}
             </Card>}
+            {received && data.enrollment?.status !== 'Enrolled' && <Card title="Available enrollment subjects" padded={false}>
+              <p className="px-5 pt-4 text-sm text-slate-500">Current year-level subjects and offered unresolved retakes. This is an availability list; reviewed assignments appear below. Department staff check prerequisites, schedules and permitted load before approving irregular enrollment.</p>
+              <DataTable rowKey="code" rows={data.availableSubjects ?? []} pageSize={10} loading={waiting}
+                columns={[{key:'code',label:'Course code'},{key:'name',label:'Subject'},{key:'yearLevel',label:'Year level'},{key:'units',label:'Units'},{key:'retake',label:'Type',render:row=>row.retake ? 'Outstanding / retake' : 'Current level'},{key:'schedule',label:'Schedule'}]}
+                empty="No eligible subjects are offered in this active term. Contact your Department." />
+            </Card>}
             {received && <Card title="Outstanding subjects to complete" padded={false}>
               <p className="px-5 pt-4 text-sm text-slate-500">Previous failed or incomplete subjects remain here until passed. Only subjects offered in the active term can be selected for retaking; ask your Department about unavailable subjects.</p>
               <DataTable rowKey="code" rows={data.outstandingSubjects ?? []} columns={[
@@ -73,39 +79,6 @@ export default function StudentEnrollment() {
                 {key:'availability',label:'Active term',render:row => data.subjects?.some(s=>s.code===row.code) ? 'Assigned for retake' : data.availableSubjects?.some(s=>s.code===row.code) ? 'Available for reviewed retake' : 'Subject unavailable; contact Department'},
               ]} empty="No outstanding subjects from earlier terms." />
             </Card>}
-            {received && (
-              <Card title="Available offerings for this term" padded={false}>
-                <p className="px-5 pt-4 text-sm text-slate-500 dark:text-slate-400">
-                  Available subjects include current-year offerings and subjects that
-                  may be requested for retaking. Retake assignments may require
-                  Department review and Registrar approval.
-                </p>
-                <DataTable
-                  rowKey="code"
-                  rows={data.availableSubjects ?? []}
-                  pageSize={10}
-                  empty="No additional subject offerings are available for this term."
-                  columns={[
-                    { key: 'code', label: 'Course code' },
-                    { key: 'name', label: 'Subject', render: row => row.name ?? row.subject ?? '--' },
-                    {
-                      key: 'yearLevel',
-                      label: 'Current level',
-                      render: row => {
-                        const year = row.yearLevel ?? row.year_level
-                        return year == null ? '--' : `Year ${year}`
-                      },
-                    },
-                    { key: 'units', label: 'Units' },
-                    {
-                      key: 'retake',
-                      label: 'Outstanding / retake',
-                      render: row => row.retake ? 'RETAKE' : 'CURRENT',
-                    },
-                  ]}
-                />
-              </Card>
-            )}
             <Card title="Subjects" padded={false}>
               <DataTable
                 rowKey="code"

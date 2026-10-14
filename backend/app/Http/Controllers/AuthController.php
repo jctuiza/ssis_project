@@ -9,6 +9,7 @@ use App\Support\Resources;
 use App\Support\Rules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends ApiController
@@ -33,6 +34,9 @@ class AuthController extends ApiController
     // POST /api/login  { role, identifier, password }  ->  { user, roles, token }
     public function login(Request $request)
     {
+        if ($request->user('sanctum')) {
+            throw new ApiError('An account is already signed in. Log out before signing in to another account.', 409);
+        }
         $data = $request->validate([
             'role' => 'required|string|max:50',
             'identifier' => 'required|string|max:255',
@@ -46,7 +50,7 @@ class AuthController extends ApiController
             ->first();
 
         if (! $account || ! Hash::check($data['password'], $account->password)) {
-            throw new ApiError('Incorrect credentials. Please check your details and try again.', 401);
+            throw new ApiError('Incorrect username or password.', 401);
         }
         if ($account->status !== 'Active') {
             throw new ApiError('This account is disabled. Please contact the system administrator.', 403);
@@ -58,17 +62,39 @@ class AuthController extends ApiController
         Rules::logActivity($account, 'Successful staff sign-in', 'security', $account->user_id);
         $token = $account->createToken('ssis', ['*'], now()->addHours(8))->plainTextToken;
 
-        return [
+        $result = [
             'user' => Resources::sessionUser($account),
             'roles' => [['key' => $account->role->key, 'label' => $account->role->label]],
             'token' => $token,
         ];
+        if ($request->header('X-SSIS-Request') === '1') {
+            unset($result['token']);
+            $result['sessionKey'] = 'session:'.explode('|', $token, 2)[0];
+
+            return response()->json($result)->header('Cache-Control', 'no-store')->cookie(
+                'ssis_auth', Crypt::encryptString($token), 480, '/api',
+                config('portal.cookie_domain'), (bool) config('portal.cookie_secure'), true, false, config('portal.cookie_same_site'),
+            );
+        }
+
+        return $result;
     }
 
     // GET /api/me   (restores the session after a page refresh)
     public function me(Request $request)
     {
-        return response()->json(['user' => Resources::sessionUser($request->user()->load('role'))])->header('Cache-Control','no-store');
+        $result = ['user' => Resources::sessionUser($request->user()->load('role'))];
+        if ($request->header('X-SSIS-Request') === '1') {
+            $result['sessionKey'] = 'session:'.$request->user()->currentAccessToken()->getKey();
+        }
+        $response = response()->json($result)->header('Cache-Control', 'no-store');
+        if ($request->header('X-SSIS-Request') === '1' && ! $request->cookie('ssis_auth')) {
+            $minutes = max(1, (int) now()->diffInMinutes($request->user()->currentAccessToken()->expires_at, false));
+            $response->cookie('ssis_auth', Crypt::encryptString($request->bearerToken()), $minutes, '/api',
+                config('portal.cookie_domain'), (bool) config('portal.cookie_secure'), true, false, config('portal.cookie_same_site'));
+        }
+
+        return $response;
     }
 
     // POST /api/logout
@@ -76,6 +102,6 @@ class AuthController extends ApiController
     {
         $request->user()->currentAccessToken()?->delete();
 
-        return ['ok' => true];
+        return response()->json(['ok' => true])->withoutCookie('ssis_auth', '/api', config('portal.cookie_domain'));
     }
 }

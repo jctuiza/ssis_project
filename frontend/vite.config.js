@@ -10,6 +10,10 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': { target: 'http://localhost:8000', changeOrigin: true } },
   },
+  // Local production-build audits need the same Laravel API as development.
+  preview: {
+    proxy: { '/api': { target: 'http://localhost:8000', changeOrigin: true } },
+  },
 })
 
 

@@ -58,14 +58,16 @@ const queryString = (params) => {
 const flatten = (errors) => (errors ? Object.fromEntries(Object.entries(errors).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])) : null)
 
 async function request(method, path, { params, body, auth = true } = {}) {
-  const headers = { Accept: 'application/json' }
+  const requiresSession = auth && path !== '/login'
+  const headers = { Accept: 'application/json', 'X-SSIS-Request': '1' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   const token = tokenStore.get()
-  if (auth && token) headers.Authorization = `Bearer ${token}`
+  const legacyToken = tokenStore.legacy()
+  if (auth && legacyToken) headers.Authorization = `Bearer ${legacyToken}`
 
   let response
   try {
-    response = await fetch(`${API_BASE_URL}${path}${queryString(params)}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+    response = await fetch(`${API_BASE_URL}${path}${queryString(params)}`, { method, headers, credentials: 'include', body: body === undefined ? undefined : JSON.stringify(body) })
   } catch {
     throw new ApiError('Cannot reach the server. Check your connection and try again.', 0)
   }
@@ -77,15 +79,19 @@ async function request(method, path, { params, body, auth = true } = {}) {
     // Empty or non-JSON body (for example a server crash page).
   }
 
+  if (auth && path !== '/login' && token !== tokenStore.get()) {
+    throw new ApiError('The browser session changed. Please use the currently signed-in account.', 409)
+  }
+
   if (!response.ok) {
-    if (response.status === 401 && auth && token && token === tokenStore.get()) {
+    if (response.status === 401 && requiresSession && token && token === tokenStore.get()) {
       // The token expired or was revoked: send the user back to the login page.
       tokenStore.clear()
       window.dispatchEvent(new Event('ssis:unauthorized'))
     }
     const fields = flatten(payload?.errors)
     const message = payload?.message && !payload.message.startsWith('The given data') ? payload.message : Object.values(fields ?? {})[0] ?? 'Something went wrong. Please try again.'
-    throw new ApiError(response.status === 401 && auth ? 'Your session has ended. Please log in again.' : message, response.status, fields)
+    throw new ApiError(response.status === 401 && requiresSession ? 'Your session has ended. Please log in again.' : message, response.status, fields)
   }
 
   if (method !== 'GET') { invalidateRequests(); emit() }

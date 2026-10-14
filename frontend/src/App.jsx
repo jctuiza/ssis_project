@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import RouteErrorBoundary from './components/feedback/RouteErrorBoundary'
 import {
   Navigate,
@@ -26,6 +26,12 @@ const DEFAULT_LOGIN = '/student/login'
 const isRole = (key) => Object.hasOwn(ROLES, key)
 const landing = (role) => `/${role}/${homePage(role)}`
 
+function SessionPending({ error, onRetry }) {
+  return <main className="min-h-screen bg-page dark:bg-slate-950">
+    {error && <div role="alert" className="mx-auto max-w-3xl p-6 text-sm text-slate-700 dark:text-slate-200">{error.message} <button type="button" className="ml-2 underline" onClick={onRetry}>Retry</button></div>}
+  </main>
+}
+
 function LoginRoute({ user, theme, onToggleTheme, onLogin }) {
   const { role } = useParams()
 
@@ -45,7 +51,7 @@ function LoginRoute({ user, theme, onToggleTheme, onLogin }) {
 
   if (!isRole(role)) {
     return loading
-      ? null
+      ? <SessionPending />
       : <Navigate to={DEFAULT_LOGIN} replace />
   }
 
@@ -85,7 +91,7 @@ function PortalRoute({
 
   if (user.mustChangePassword) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<SessionPending />}>
         <ForcePasswordChange
           user={user}
           theme={theme}
@@ -139,9 +145,13 @@ function RoleHome({ user }) {
 export default function App() {
   const [theme, setTheme] = useState('dark')
   const [user, setUser] = useState(null)
-  const [booting, setBooting] = useState(() =>
-    Boolean(tokenStore.get()),
-  )
+  const [sessionError, setSessionError] = useState(null)
+  const [sessionRevision, setSessionRevision] = useState(0)
+  const [booting, setBooting] = useState(true)
+  const bootingRef = useRef(booting)
+  bootingRef.current = booting
+  const userRef = useRef(user)
+  userRef.current = user
 
   const go = useNavigate()
 
@@ -149,17 +159,22 @@ export default function App() {
     if (!booting) return undefined
 
     let alive = true
+    setSessionError(null)
 
     authService
       .restoreSession()
       .then((account) => {
-        if (!alive || !account) return
+        if (!alive) return
+        if (!account) { setUser(null); return }
 
         registerRoles([
           { key: account.role, label: account.roleLabel },
         ])
 
         setUser(account)
+      })
+      .catch((error) => {
+        if (alive) setSessionError(error)
       })
       .finally(() => {
         if (alive) setBooting(false)
@@ -168,14 +183,62 @@ export default function App() {
     return () => {
       alive = false
     }
-  }, [booting])
+  }, [booting, sessionRevision])
 
   useEffect(() => {
-    const onUnauthorized = () => setUser(null)
+    let alive = true
+    let checking = false
+    const revalidate = () => {
+      setUser(null)
+      setSessionError(null)
+      setBooting(Boolean(tokenStore.get()))
+      setSessionRevision(value => value + 1)
+    }
+    const refreshSession = () => {
+      if (checking || bootingRef.current || !tokenStore.get()) return
+      checking = true
+      const token = tokenStore.get()
+      authService.restoreSession().then(account => {
+        if (!alive || tokenStore.get() !== token) return
+        if (account) registerRoles([{ key: account.role, label: account.roleLabel }])
+        const previous = userRef.current
+        if (previous && account && (previous.role !== account.role || JSON.stringify(previous.permissions) !== JSON.stringify(account.permissions))) {
+          window.dispatchEvent(new Event('ssis:session-changed'))
+          return
+        }
+        setUser(current => JSON.stringify(current) === JSON.stringify(account) ? current : account)
+        setSessionError(null)
+      }).catch(error => {
+        if (alive && tokenStore.get() === token) setSessionError(error)
+      }).finally(() => {
+        checking = false
+      })
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshSession() }
+    const onPageShow = event => { if (event.persisted) revalidate() }
+    const onUnauthorized = revalidate
 
     window.addEventListener('ssis:unauthorized', onUnauthorized)
+    window.addEventListener('ssis:session-changed', revalidate)
+    window.addEventListener('focus', refreshSession)
+    window.addEventListener('online', refreshSession)
+    window.addEventListener('ssis:retry-session', refreshSession)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = setInterval(() => {
+      if (!tokenStore.get() || document.visibilityState !== 'visible') return
+      refreshSession()
+    }, 30000)
 
     return () => {
+      alive = false
+      clearInterval(timer)
+      window.removeEventListener('ssis:session-changed', revalidate)
+      window.removeEventListener('focus', refreshSession)
+      window.removeEventListener('online', refreshSession)
+      window.removeEventListener('ssis:retry-session', refreshSession)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener(
         'ssis:unauthorized',
         onUnauthorized,
@@ -213,17 +276,21 @@ export default function App() {
   }
 
   const logout = async () => {
-    await authService.logout()
-    setUser(null)
+    try {
+      await authService.logout()
+      setUser(null)
+    } catch (error) {
+      setSessionError(new Error(`Logout could not be confirmed: ${error.message} Retry to reconnect, then log out again.`))
+    }
   }
 
   const home = user ? landing(user.role) : DEFAULT_LOGIN
 
-  // Render only the existing page background during session restoration.
-  if (booting) return null
+  if (booting || (sessionError && !user)) return <SessionPending error={sessionError} onRetry={() => setBooting(true)} />
 
   return (
     <RouteErrorBoundary>
+      {sessionError && user && <div role="alert" className="fixed bottom-4 left-4 right-4 z-50 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-900 dark:border-amber-700 dark:bg-slate-900 dark:text-white">{sessionError.message} <button type="button" className="ml-2 underline" onClick={() => window.dispatchEvent(new Event('ssis:retry-session'))}>Retry</button></div>}
       <Routes>
           <Route path="/online-enrollment" element={<OnlineEnrollment />} />
         <Route
